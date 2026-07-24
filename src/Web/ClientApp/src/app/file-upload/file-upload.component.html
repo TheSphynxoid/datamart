@@ -1,0 +1,6 @@
+<div class="upload-box">
+  <h3>Upload File</h3>
+  <input type="file" (change)="onFileSelected($event)" />
+  <p *ngIf="errorMessage" class="error">{{ errorMessage }}</p>
+  <p *ngIf="successMessage" class="success">{{ successMessage }}</p>
+</div>
