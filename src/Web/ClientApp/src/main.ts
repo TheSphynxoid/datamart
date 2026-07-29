@@ -1,8 +1,13 @@
 import { enableProdMode } from '@angular/core';
 import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
+import { locale, loadMessages } from 'devextreme/localization';
+import enMessages from 'devextreme/localization/messages/en.json';
 
 import { AppModule } from './app/app.module';
 import { environment } from './environments/environment';
+
+loadMessages(enMessages);
+locale('en');
 
 export function getBaseUrl() {
   return document.getElementsByTagName('base')[0].href;

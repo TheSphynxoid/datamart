@@ -1,10 +1,13 @@
 import { Injectable, signal } from '@angular/core';
+import themes from 'devextreme/ui/themes';
 
 export type Theme = 'auto' | 'light' | 'dark';
 
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
   private readonly STORAGE_KEY = 'picoColorScheme';
+
+  private readonly prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)') ?? null;
 
   theme = signal<Theme>('auto');
 
@@ -13,6 +16,12 @@ export class ThemeService {
     const initial: Theme = stored ?? 'auto';
     this.theme.set(initial);
     this.applyTheme(initial);
+
+    this.prefersDark?.addEventListener('change', (e) => {
+      if (this.theme() === 'auto') {
+        this.applyDevExtreme(e.matches ? 'dark' : 'light');
+      }
+    });
   }
 
   setTheme(value: Theme): void {
@@ -27,5 +36,14 @@ export class ThemeService {
     } else {
       document.documentElement.setAttribute('data-theme', theme);
     }
+
+    const resolved = theme === 'auto'
+      ? (this.prefersDark?.matches ? 'dark' : 'light')
+      : theme;
+    this.applyDevExtreme(resolved);
+  }
+
+  private applyDevExtreme(scheme: 'light' | 'dark'): void {
+    themes.current(`fluent.blue.${scheme}`);
   }
 }

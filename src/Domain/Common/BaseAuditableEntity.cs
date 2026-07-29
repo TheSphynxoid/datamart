@@ -1,6 +1,8 @@
-﻿namespace DataMart.Domain.Common;
+﻿using DataMart.Application.Common.Interfaces;
 
-public abstract class BaseAuditableEntity : BaseEntity
+namespace DataMart.Domain.Common;
+
+public abstract class BaseAuditableEntity : BaseEntity, IImportable
 {
     public DateTimeOffset Created { get; set; }
 

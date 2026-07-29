@@ -9,16 +9,27 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@600;700&display=swap" rel="stylesheet" />
+    <link rel="dx-theme" data-theme="fluent.blue.light" href="assets/devextreme/dx.fluent.blue.light.css">
+    <link rel="dx-theme" data-theme="fluent.blue.dark" href="assets/devextreme/dx.fluent.blue.dark.css">
     <script>
       (function () {
-        var theme = localStorage.getItem('picoColorScheme');
-        if (theme && theme !== 'auto') {
-          document.documentElement.setAttribute('data-theme', theme);
+        var stored = localStorage.getItem('picoColorScheme');
+        var resolved = stored && stored !== 'auto'
+          ? stored
+          : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        if (stored && stored !== 'auto') {
+          document.documentElement.setAttribute('data-theme', resolved);
+        }
+        var links = document.querySelectorAll('link[rel="dx-theme"]');
+        for (var i = 0; i < links.length; i++) {
+          if (links[i].getAttribute('data-theme') === 'fluent.blue.' + resolved) {
+            links[i].setAttribute('data-active', 'true');
+          }
         }
       })();
     </script>
   </head>
-  <body>
+  <body class="dx-viewport">
     <app-root>Loading...</app-root>
   </body>
 </html>

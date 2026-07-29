@@ -30,7 +30,6 @@ app.UseCors(static builder =>
         .AllowAnyHeader()
         .AllowAnyOrigin());
 
-app.UseAntiforgery();
 
 app.UseFileServer();
 

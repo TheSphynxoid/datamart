@@ -19,6 +19,16 @@ import { RegisterComponent } from 'src/api-authorization/register/register.compo
 import { AuthGuard } from 'src/api-authorization/auth.guard';
 import { AuthService } from 'src/api-authorization/auth.service';
 
+import { FileUploadComponent } from './file-upload/file-upload.component';
+import { ExcelMapComponent } from './Excelmap/excelmap.component';
+import { DxDataGridModule } from 'devextreme-angular/ui/data-grid';
+import { DxFormModule } from 'devextreme-angular/ui/form';
+import { DxButtonModule } from 'devextreme-angular/ui/button';
+import { DxSelectBoxModule } from 'devextreme-angular/ui/select-box';
+import { DxTextBoxModule } from 'devextreme-angular/ui/text-box';
+import { DxValidatorModule } from 'devextreme-angular/ui/validator';
+import { DxValidationSummaryModule } from 'devextreme-angular/ui/validation-summary';
+
 export function getApiBaseUrl(): string {
   const url = document.getElementsByTagName('base')[0].href;
   return url.endsWith('/') ? url.slice(0, -1) : url;
@@ -34,12 +44,21 @@ export function getApiBaseUrl(): string {
         TasksComponent,
         ThemeToggleComponent,
         LoginComponent,
-        RegisterComponent
+        RegisterComponent,
+        FileUploadComponent,
+        ExcelMapComponent
     ],
     bootstrap: [AppComponent],
     imports: [
         BrowserModule,
         FormsModule,
+        DxDataGridModule,
+        DxFormModule,
+        DxButtonModule,
+        DxSelectBoxModule,
+        DxTextBoxModule,
+        DxValidatorModule,
+        DxValidationSummaryModule,
         LucideAngularModule.pick({ Sun, Moon, Laptop, Plus, Settings, MoreHorizontal }),
         RouterModule.forRoot([
             { path: '', component: HomeComponent, pathMatch: 'full' },
@@ -47,7 +66,8 @@ export function getApiBaseUrl(): string {
             { path: 'weather', component: WeatherComponent, canActivate: [AuthGuard] },
             { path: 'todo', component: TasksComponent, canActivate: [AuthGuard] },
             { path: 'login', component: LoginComponent },
-            { path: 'register', component: RegisterComponent }
+            { path: 'register', component: RegisterComponent },
+            { path: 'excelmap', component: ExcelMapComponent }
         ])
     ],
     providers: [

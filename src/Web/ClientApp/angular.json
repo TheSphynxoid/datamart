@@ -33,6 +33,26 @@
                 "glob": "favicon.png",
                 "input": "src",
                 "output": "/"
+              },
+              {
+                "glob": "dx.fluent.blue.light.css",
+                "input": "node_modules/devextreme/dist/css",
+                "output": "/assets/devextreme/"
+              },
+              {
+                "glob": "dx.fluent.blue.dark.css",
+                "input": "node_modules/devextreme/dist/css",
+                "output": "/assets/devextreme/"
+              },
+              {
+                "glob": "**/*",
+                "input": "node_modules/devextreme/dist/css/icons",
+                "output": "/assets/devextreme/icons/"
+              },
+              {
+                "glob": "**/*",
+                "input": "node_modules/devextreme/dist/css/fonts",
+                "output": "/assets/devextreme/fonts/"
               }
             ],
             "styles": [
