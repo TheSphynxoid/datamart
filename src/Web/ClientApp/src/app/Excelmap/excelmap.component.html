@@ -1,4 +1,259 @@
-<p>Test Page</p>
-<app-file-upload (SelectedFile)="onFileSelected($event)"></app-file-upload>
+<hgroup>
+  <h1>Excel Import</h1>
+  <p>Map a spreadsheet into the database, step by step.</p>
+</hgroup>
 
-<p>Selected file: {{ selectedFile?.name || 'none yet' }}</p>
+@if (entitySchemas(); as schemas) {
+  <ol class="wizard">
+    @for (step of steps; track step.id; let i = $index) {
+      <li class="wizard-step" [attr.data-status]="statusOf(i)">
+        @switch (statusOf(i)) {
+          @case ('locked') {
+            <div class="step-header">
+              <span class="step-index" aria-hidden="true">&#128274;</span>
+              <span class="step-label">{{ step.label }}</span>
+            </div>
+          }
+          @case ('completed') {
+            <button type="button" class="step-header completed" (click)="editStep(i)">
+              <span class="step-index" aria-hidden="true">&#10003;</span>
+              <span class="step-label">{{ step.label }}</span>
+              <small class="step-summary">{{ summaryOf(i) }}</small>
+              <span class="step-chevron" aria-hidden="true">&#9662;</span>
+            </button>
+          }
+          @case ('active') {
+            <div class="step-header active">
+              <span class="step-index" aria-hidden="true">{{ i + 1 }}</span>
+              <span class="step-label">{{ step.label }}</span>
+            </div>
+            <div class="step-body">
+              @switch (step.id) {
+                @case ('target') {
+                  <label for="entitySelect">Pick the table this spreadsheet maps into.</label>
+                  <dx-select-box
+                    id="entitySelect"
+                    [items]="schemas"
+                    [value]="draftEntity()"
+                    displayExpr="name"
+                    placeholder="Select a target table&hellip;"
+                    (onValueChanged)="onEntityChanged($event.value)">
+                  </dx-select-box>
+                  @if (draftEntity()?.properties; as props) {
+                    <table class="schema-preview">
+                      <thead>
+                        <tr>
+                          <th>Field</th>
+                          <th>Type</th>
+                          <th>Constraints</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (prop of props; track prop.name) {
+                          <tr [class.excluded]="prop.isExcluded">
+                            <td>{{ prop.name }}</td>
+                            <td class="col-type">{{ prop.dataType }}</td>
+                            <td>
+                              <div class="col-badges">
+                                @for (badge of fieldBadges(prop); track badge.cls) {
+                                  <span class="badge badge-{{ badge.cls }}">{{ badge.label }}</span>
+                                }
+                                @if (!prop.isNullable) {
+                                  <span class="badge badge-req">required</span>
+                                }
+                                @if (prop.isExcluded) {
+                                  <span class="badge badge-ex">excluded</span>
+                                }
+                                @if (prop.maxLength) {
+                                  <span class="badge badge-len">max {{ prop.maxLength }}</span>
+                                }
+                              </div>
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  }
+                  <dx-button
+                    text="Confirm"
+                    [disabled]="draftEntity() === null"
+                    (onClick)="confirmEntity()">
+                  </dx-button>
+                }
+                @case ('upload') {
+                  <app-file-upload (SelectedFile)="onFileSelected($event)"></app-file-upload>
+
+                  @if (parsing()) {
+                    <span aria-busy="true">Reading file&hellip;</span>
+                  } @else if (parseError()) {
+                    <p class="error">{{ parseError() }}</p>
+                  } @else if (excelColumns().length > 0) {
+                    <p>
+                      <small>
+                        {{ selectedFile()?.name }} &mdash; showing first {{ previewRows().length }} row(s).
+                      </small>
+                    </p>
+                    <dx-data-grid
+                      [dataSource]="previewRows()"
+                      [showBorders]="true"
+                      [columnAutoWidth]="true"
+                      [wordWrapEnabled]="true"
+                      [paging]="{ pageSize: 10, enabled: true }"
+                      [pager]="{ visible: true, showPageSizeSelector: true, allowedPageSizes: [10, 25, 50], showInfo: true }">
+                    </dx-data-grid>
+                    <dx-button text="Confirm" (onClick)="confirmFile()"></dx-button>
+                  }
+                }
+                @case ('map') {
+                  @if (mapping(); as m) {
+                    <table class="mapping-table">
+                      <thead>
+                        <tr>
+                          <th>Excel column</th>
+                          <th>Sample value</th>
+                          <th aria-hidden="true"></th>
+                          <th>DB field</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (row of m; track row.excelColumn; let i = $index) {
+                          <tr>
+                            <td>{{ row.excelColumn }}</td>
+                            <td class="sample">{{ sampleFor(row.excelColumn) }}</td>
+                            <td aria-hidden="true">&rarr;</td>
+                            <td>
+                              <dx-select-box
+                                [items]="availablePropertiesFor(i)"
+                                [value]="row.dbField"
+                                displayExpr="name"
+                                valueExpr="name"
+                                [showClearButton]="true"
+                                placeholder="&mdash; skip &mdash;"
+                                (onValueChanged)="onMappingChanged(i, $event.value)">
+                                <div *dxTemplate="let prop of 'item'">
+                                  <span class="item-name">{{ prop.name }}</span>
+                                  <span class="type-hint">{{ prop.dataType }}</span>
+                                  @for (badge of fieldBadges(prop); track badge.cls) {
+                                    <span class="badge badge-{{ badge.cls }}">{{ badge.label }}</span>
+                                  }
+                                </div>
+                              </dx-select-box>
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                    @if (formatEntries().length > 0) {
+                      <div class="format-config">
+                        <h3>Format configuration <small>({{ formatEntries().length }} need attention)</small></h3>
+                        @for (entry of formatEntries(); track entry.index) {
+                          <div class="format-entry">
+                            <div class="format-header">
+                              {{ entry.excelColumn }} &rarr; {{ entry.dbField }}
+                              <span class="type-badge">{{ entry.dataType }}</span>
+                            </div>
+                            @switch (entry.category) {
+                              @case ('date') {
+                                <div class="format-row">
+                                  <label>Source</label>
+                                  <dx-select-box
+                                    [items]="dateFormats"
+                                    [value]="entry.dateFormat"
+                                    displayExpr="label"
+                                    valueExpr="value"
+                                    placeholder="Select format&hellip;"
+                                    (onValueChanged)="onFormatChanged(entry.index, 'dateFormat', $event.value)">
+                                  </dx-select-box>
+                                  @if (entry.dateFormatDetected) {
+                                    <span class="detect-ok">&#10003; detected</span>
+                                  } @else if (!entry.dateFormat) {
+                                    <span class="detect-warn">&#9888; not detected &mdash; select format</span>
+                                  }
+                                </div>
+                                <div class="format-row">
+                                  <label>Destination</label>
+                                  <span class="dest-info">{{ entry.destination }}</span>
+                                </div>
+                              }
+                              @case ('decimal') {
+                                <div class="format-row">
+                                  <label>Source</label>
+                                  <dx-select-box
+                                    [items]="decimalSeparators"
+                                    [value]="entry.decimalSeparator ?? '.'"
+                                    displayExpr="label"
+                                    valueExpr="value"
+                                    (onValueChanged)="onFormatChanged(entry.index, 'decimalSeparator', $event.value)">
+                                  </dx-select-box>
+                                </div>
+                                <div class="format-row">
+                                  <label>Cleanup</label>
+                                  <label class="toggle-label">
+                                    <input type="checkbox"
+                                      [checked]="entry.stripSymbols ?? false"
+                                      (change)="onToggleChanged(entry.index, 'stripSymbols', $event)">
+                                    Strip symbols ($, &euro;, thousands separators)
+                                  </label>
+                                </div>
+                                <div class="format-row">
+                                  <label>Destination</label>
+                                  <span class="dest-info">{{ entry.destination }}</span>
+                                </div>
+                              }
+                              @case ('boolean') {
+                                <div class="format-row">
+                                  <label>Source</label>
+                                  <dx-text-box
+                                    [value]="entry.boolTrueValue"
+                                    placeholder="Yes"
+                                    (onValueChanged)="onFormatChanged(entry.index, 'boolTrueValue', $event.value)">
+                                  </dx-text-box>
+                                  <span class="value-sep">= true</span>
+                                  <dx-text-box
+                                    [value]="entry.boolFalseValue"
+                                    placeholder="No"
+                                    (onValueChanged)="onFormatChanged(entry.index, 'boolFalseValue', $event.value)">
+                                  </dx-text-box>
+                                  <span class="value-sep">= false</span>
+                                </div>
+                                <div class="format-row">
+                                  <label>Destination</label>
+                                  <span class="dest-info">{{ entry.destination }}</span>
+                                </div>
+                              }
+                            }
+                          </div>
+                        }
+                      </div>
+                    }
+                    @if (unmappedRequired().length > 0) {
+                      <p class="warning">
+                        Required fields without a source: {{ unmappedRequired().join(', ') }}
+                      </p>
+                    }
+                    @if (missingFormats().length > 0) {
+                      <p class="warning">
+                        Date format required for: {{ missingFormats().join(', ') }}
+                      </p>
+                    }
+                    <dx-button
+                      text="Confirm mapping"
+                      [disabled]="m.filter(x => x.dbField !== null).length === 0 || missingFormats().length > 0"
+                      (onClick)="confirmMapping()">
+                    </dx-button>
+                  }
+                }
+                @default {
+                  <p><em>{{ step.label }} &mdash; not yet implemented.</em></p>
+                  <dx-button text="Continue" (onClick)="confirmStub(i)"></dx-button>
+                }
+              }
+            </div>
+          }
+        }
+      </li>
+    }
+  </ol>
+} @else {
+  <span aria-busy="true">Loading entities&hellip;</span>
+}

@@ -24,8 +24,8 @@ export class FileUploadComponent {
             return;
         }
 
-        if (file.size > 2 * 1024 * 1024) { // 2 MB limit
-            this.errorMessage = 'File size exceeds 2 MB.';
+        if (file.size > 100 * 1024 * 1024) { // 100 MB limit
+            this.errorMessage = 'File size exceeds 100 MB.';
             return;
         }
 

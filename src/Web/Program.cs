@@ -1,3 +1,4 @@
+using DataMart.Application.Common.Interfaces;
 using DataMart.Infrastructure.Data;
 using Scalar.AspNetCore;
 
@@ -10,6 +11,8 @@ builder.AddKeyVaultIfConfigured();
 builder.AddApplicationServices();
 builder.AddInfrastructureServices();
 builder.AddWebServices();
+
+builder.Services.AddSingleton<IEntitySchemaService, EntitySchemaService>();
 
 var app = builder.Build();
 

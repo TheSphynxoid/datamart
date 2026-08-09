@@ -20,6 +20,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>, IApplica
 
     public DbSet<ImportRecord> ImportRecords => Set<ImportRecord>();
 
+    public DbSet<Mapping> Mappings => Set<Mapping>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

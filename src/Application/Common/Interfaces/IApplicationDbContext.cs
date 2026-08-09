@@ -12,6 +12,8 @@ public interface IApplicationDbContext
 
     DbSet<ImportRecord> ImportRecords { get; }
 
+    DbSet<Mapping> Mappings { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 
     EntitySchemaDto[] GetEntityList();

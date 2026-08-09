@@ -80,16 +80,50 @@ Domain ──► Application ──► Infrastructure ──► Web
 - Components inject generated clients directly; hand-written services only for
   cross-cutting state (e.g. `AuthService`).
 - New page = create component folder under `src/app/`, declare + add route in `app.module.ts`.
+- **DevExtreme modules** currently imported in `AppModule`: DxDataGrid, DxForm, DxButton,
+  DxSelectBox, DxTextBox, DxValidator, DxValidationSummary. Each UI module re-exports
+  `DxTemplateModule` (the `*dxTemplate` directive) for custom item templates.
 
-## Current feature in progress: Excel import
+## Current feature: Excel import
 
-Component tree being built under `src/app/`:
-- `Excelmap/excelmap.component.ts` — **parent/orchestrator** ("smart container") that owns
-  the file + parsed data and drives upload/preview/send.
-- `file-upload/` — child: acquire + validate a file (size + magic-byte pre-check), emit it up.
-- Preview component (TBD) — child: receive parsed rows via `@Input`, render only.
-- **Pattern:** lift shared state to the parent; children communicate via `@Output` (up) /
-  `@Input` (down). `.xlsx` is a ZIP → magic bytes `50 4B 03 04`; reject `.xls`/`.xlsm`.
+5-step wizard in `src/app/Excelmap/excelmap.component.ts` (signal-based, progressive disclosure):
+1. **Target entity** — DxSelectBox of importable entities + schema preview (fields, types, badges). ✅
+2. **Upload file** — `file-upload/` child validates + emits file; web worker (`excel.worker.ts`) parses with SheetJS off main thread. ✅
+3. **Map columns** — auto-match by name, duplicate prevention, format options (date/decimal/boolean). ✅
+4. **Preview** — *(stub, not yet built)*
+5. **Verify & import** — *(stub, not yet built)*
+
+### Wizard architecture
+- All state in Angular signals; derived state in `computed`.
+- `confirmStep(index, commit)`: commit + advance; if step was already done, cascade-reset downstream.
+- `statusOf(index)`: derived from data (locked/active/completed) — never stored.
+- Draft vs committed pattern for entity picker (`draftEntity` → `selectedEntity` on confirm).
+- Editing a completed step re-expands it; confirming re-runs cascade reset for downstream steps.
+
+### Entity schema endpoint
+- `ApplicationDbContext.GetEntityList()` returns `EntitySchemaDto[]` (table name, PK, properties with types/constraints).
+- `IApplicationDbContext` hides `.Model`/`.Database`, so schema queries build DTOs inside the context.
+- Entities filtered by `IImportable` interface + `[Exclude]` attribute (class or property level).
+- `EntityPropertyDto.IsExcluded` flags `[Exclude]`-d properties (audit fields, computed columns).
+
+### Format options (mapping step)
+- Triggered by DB field CLR type: dates (`DateTime`/`DateOnly`), decimals (`Decimal`/`Double`), booleans.
+- Date format auto-detection from sample data (unambiguous only — day > 12 disambiguates).
+- Decimal separator (period/comma) + optional strip-symbols toggle ($, €, thousands separators).
+- Boolean source mapping (custom true/false text values).
+- Separate "format configuration" section below mapping table — clean separation of concerns.
+
+### Web worker (`excel.worker.ts`)
+- SheetJS parsing off main thread. ArrayBuffer transferred zero-copy (`postMessage(buf, [buf])`).
+- Worker terminated + recreated per parse (discards stale results from rapid re-uploads).
+- `sheetRows: 50` option stops parsing early for preview (never processes all 1M rows).
+
+### Component tree
+- `Excelmap/excelmap.component.ts` — parent/orchestrator (owns all state, drives the wizard).
+- `file-upload/` — child: acquire + validate file (size + magic-byte `50 4B 03 04`), emit via `@Output`.
+- `excel.worker.ts` — SheetJS in web worker, exports `ExcelPreviewResult` interface.
+
+**Pattern:** lift shared state to the parent; children communicate via `@Output` (up) / `@Input` (down).
 
 ## Security stance for file upload
 
@@ -119,10 +153,15 @@ store outside webroot. Excel is the **only** input format for now.
 
 ## Known incomplete / gotchas
 
-- **DevExtreme is half-wired:** packages installed and CSS referenced in `angular.json`
-  (`dx.fluent.blue.light.css`), but **no DxModules imported in `app.module.ts`**. Add the
-  specific module (e.g. `DxDataGridModule`) to `AppModule.imports` when first using a
-  DevExtreme component.
+- **Wizard steps 4–5 are stubs** — preview and verify/import are not yet built.
+- **No server-side upload/import endpoint yet** — file parsing is client-side only (preview).
+  Server-side validation + import pipeline is the next major backend task.
+- **SourceKey + ImportBatch columns decided but not built** — plan: add to `BaseAuditableEntity`
+  for audit traceability (which DB record came from which Excel row / import session).
+  Enables future UPSERT without redesigning the schema.
+- **INSERT-only for MVP** — no UPSERT/update mode yet. Every import creates new records.
+- **No mapping save/load yet** — mapping config is in-memory only. Persistence (DB or file)
+  is planned but not started.
 - **`web-api-client.ts` is generated** — always edit backend endpoints then regenerate,
   never edit this file directly.
 - npm install scripts are pinned in `package.json` under `allowScripts` (esbuild, lmdb,

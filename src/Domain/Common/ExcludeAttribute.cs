@@ -11,4 +11,7 @@ namespace DataMart.Domain.Common;
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Property, AllowMultiple = true,  Inherited = false)]
 public class ExcludeAttribute : Attribute
 {
+    public string? Reason { get; set; }
+
+    public ExcludeAttribute(string reason = "") {  Reason = reason; }
 }
