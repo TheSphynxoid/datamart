@@ -1,5 +1,5 @@
 import { Component, OnInit, OnDestroy, signal, effect, computed } from '@angular/core';
-import { EntitySchemaClient, EntitySchemaDto, EntityPropertyDto } from '../web-api-client';
+import { EntitySchemaClient, EntitySchemaDto, EntityPropertyDto, MappingEndpointsClient, MappingDto, ColumnMappingDto, CreateMappingCommand } from '../web-api-client';
 import type { ExcelPreviewResult } from './excel.worker';
 
 type StepStatus = 'locked' | 'active' | 'completed';
@@ -70,6 +70,14 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
   protected parsing = signal(false);
   protected parseError = signal<string | null>(null);
 
+  protected savedMappings = signal<MappingDto[]>([]);
+  protected loadingMappings = signal(false);
+  protected showSaveForm = signal(false);
+  protected mappingName = signal('');
+  protected mappingDescription = signal('');
+  protected savingMapping = signal(false);
+  protected saveError = signal<string | null>(null);
+
   protected mapping = signal<ColumnMapping[] | null>(null);
   protected mappableProperties = computed(() => {
     const entity = this.selectedEntity();
@@ -128,7 +136,10 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
 
   private excelWorker?: Worker;
 
-  constructor(private entitySchemaClient: EntitySchemaClient) {
+  constructor(
+    private entitySchemaClient: EntitySchemaClient,
+    private mappingClient: MappingEndpointsClient
+  ) {
     effect(() => {
       if (this.currentStepId() === 'target') {
         this.draftEntity.set(this.selectedEntity());
@@ -138,6 +149,12 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
     effect(() => {
       if (this.currentStepId() === 'map' && this.mapping() === null) {
         this.autoMatchMapping();
+      }
+    });
+
+    effect(() => {
+      if (this.currentStepId() === 'map' && this.selectedEntity()) {
+        this.loadSavedMappings();
       }
     });
   }
@@ -303,6 +320,63 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
     this.draftEntity.set(value);
   }
 
+  protected onLoadMappingSelected(value: MappingDto | null): void {
+    if (value) {
+      this.applySavedMapping(value);
+    }
+  }
+
+  protected toggleSaveForm(): void {
+    this.showSaveForm.set(!this.showSaveForm());
+    this.saveError.set(null);
+    if (!this.showSaveForm()) {
+      this.mappingName.set('');
+      this.mappingDescription.set('');
+    }
+  }
+
+  protected saveCurrentMapping(): void {
+    const entity = this.selectedEntity();
+    const currentMapping = this.mapping();
+    if (!entity?.name || !currentMapping) return;
+
+    this.savingMapping.set(true);
+    this.saveError.set(null);
+
+    const command = new CreateMappingCommand({
+      name: this.mappingName(),
+      description: this.mappingDescription() || undefined,
+      targetEntity: entity.name,
+      columns: currentMapping
+        .filter(m => m.dbField !== null)
+        .map(m => new ColumnMappingDto({
+          columnName: m.excelColumn,
+          columnType: undefined,
+          targetColName: m.dbField!,
+          dateFormat: m.dateFormat,
+          decimalSeparator: m.decimalSeparator,
+          stripSymbols: m.stripSymbols ?? false,
+          boolTrueValue: m.boolTrueValue,
+          boolFalseValue: m.boolFalseValue,
+        }))
+    });
+
+    this.mappingClient.createMapping(command).subscribe({
+      next: () => {
+        this.savingMapping.set(false);
+        this.showSaveForm.set(false);
+        this.mappingName.set('');
+        this.mappingDescription.set('');
+        this.loadSavedMappings();
+      },
+      error: error => {
+        this.savingMapping.set(false);
+        this.saveError.set('Failed to save mapping.');
+        console.error(error);
+      }
+    });
+  }
+
   protected onFileSelected(file: File): void {
     this.selectedFile.set(file);
     this.excelColumns.set([]);
@@ -334,6 +408,48 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
       this.parsing.set(false);
       this.parseError.set('Could not read the file.');
     });
+  }
+
+  private loadSavedMappings(): void {
+    const entity = this.selectedEntity();
+    if (!entity?.name) return;
+
+    this.loadingMappings.set(true);
+    this.mappingClient.getMappings(entity.name, undefined).subscribe({
+      next: result => {
+        this.savedMappings.set(result);
+        this.loadingMappings.set(false);
+      },
+      error: error => {
+        this.loadingMappings.set(false);
+        this.savedMappings.set([]);
+        console.error('Failed to load saved mappings', error);
+      }
+    });
+  }
+
+  private applySavedMapping(saved: MappingDto): void {
+    const propNames = new Set(this.mappableProperties().map(p => p.name));
+    this.mapping.set(
+      this.excelColumns().map(col => {
+        const savedCol = saved.columns.find(c => c.columnName === col);
+        if (!savedCol || !savedCol.targetColName) {
+          return { excelColumn: col, dbField: null };
+        }
+        if (!propNames.has(savedCol.targetColName)) {
+          return { excelColumn: col, dbField: null };
+        }
+        return {
+          excelColumn: col,
+          dbField: savedCol.targetColName,
+          dateFormat: savedCol.dateFormat ?? undefined,
+          decimalSeparator: savedCol.decimalSeparator as '.' | ',' | undefined,
+          stripSymbols: savedCol.stripSymbols ?? undefined,
+          boolTrueValue: savedCol.boolTrueValue ?? undefined,
+          boolFalseValue: savedCol.boolFalseValue ?? undefined,
+        };
+      })
+    );
   }
 
   private autoMatchMapping(): void {
@@ -418,7 +534,14 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
         this.previewRows.set([]);
         this.parseError.set(null);
         break;
-      case 2: this.mapping.set(null); break;
+      case 2:
+        this.mapping.set(null);
+        this.savedMappings.set([]);
+        this.showSaveForm.set(false);
+        this.saveError.set(null);
+        this.mappingName.set('');
+        this.mappingDescription.set('');
+        break;
       case 3: this.previewData.set(null); break;
       case 4: this.verified.set(null); break;
     }

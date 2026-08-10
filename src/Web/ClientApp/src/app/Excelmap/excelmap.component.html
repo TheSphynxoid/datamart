@@ -106,6 +106,20 @@
                 }
                 @case ('map') {
                   @if (mapping(); as m) {
+                    @if (loadingMappings()) {
+                      <small>Loading saved mappings&hellip;</small>
+                    } @else if (savedMappings().length > 0) {
+                      <div class="mapping-actions">
+                        <label>Load saved mapping</label>
+                        <dx-select-box
+                          [items]="savedMappings()"
+                          [value]="null"
+                          displayExpr="name"
+                          placeholder="Select a saved mapping&hellip;"
+                          (onValueChanged)="onLoadMappingSelected($event.value)">
+                        </dx-select-box>
+                      </div>
+                    }
                     <table class="mapping-table">
                       <thead>
                         <tr>
@@ -241,6 +255,43 @@
                       [disabled]="m.filter(x => x.dbField !== null).length === 0 || missingFormats().length > 0"
                       (onClick)="confirmMapping()">
                     </dx-button>
+                    @if (m.filter(x => x.dbField !== null).length > 0) {
+                      <div class="save-section">
+                        @if (showSaveForm()) {
+                          <div class="save-form">
+                            <dx-text-box
+                              [value]="mappingName()"
+                              placeholder="Mapping name"
+                              (onValueChanged)="mappingName.set($event.value)">
+                            </dx-text-box>
+                            <dx-text-box
+                              [value]="mappingDescription()"
+                              placeholder="Description (optional)"
+                              (onValueChanged)="mappingDescription.set($event.value)">
+                            </dx-text-box>
+                            @if (saveError()) {
+                              <p class="error">{{ saveError() }}</p>
+                            }
+                            <div class="save-actions">
+                              <dx-button
+                                text="Save"
+                                [disabled]="mappingName().trim() === '' || savingMapping()"
+                                (onClick)="saveCurrentMapping()">
+                              </dx-button>
+                              <dx-button
+                                text="Cancel"
+                                (onClick)="toggleSaveForm()">
+                              </dx-button>
+                            </div>
+                          </div>
+                        } @else {
+                          <dx-button
+                            text="Save as new mapping"
+                            (onClick)="toggleSaveForm()">
+                          </dx-button>
+                        }
+                      </div>
+                    }
                   }
                 }
                 @default {

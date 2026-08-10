@@ -89,7 +89,7 @@ Domain ──► Application ──► Infrastructure ──► Web
 5-step wizard in `src/app/Excelmap/excelmap.component.ts` (signal-based, progressive disclosure):
 1. **Target entity** — DxSelectBox of importable entities + schema preview (fields, types, badges). ✅
 2. **Upload file** — `file-upload/` child validates + emits file; web worker (`excel.worker.ts`) parses with SheetJS off main thread. ✅
-3. **Map columns** — auto-match by name, duplicate prevention, format options (date/decimal/boolean). ✅
+3. **Map columns** — auto-match by name, duplicate prevention, format options (date/decimal/boolean), save/load mapping configurations. ✅
 4. **Preview** — *(stub, not yet built)*
 5. **Verify & import** — *(stub, not yet built)*
 
@@ -117,6 +117,13 @@ Domain ──► Application ──► Infrastructure ──► Web
 - SheetJS parsing off main thread. ArrayBuffer transferred zero-copy (`postMessage(buf, [buf])`).
 - Worker terminated + recreated per parse (discards stale results from rapid re-uploads).
 - `sheetRows: 50` option stops parsing early for preview (never processes all 1M rows).
+
+### Mapping configuration (save/load)
+- `Mapping` entity (`Domain/Entities/Mapping.cs`) — stores named mapping configs with `ColumnMapping[]` (owned entities via `OwnsMany`).
+- `MappingConfiguration` EF config (`Infrastructure/Data/Configurations/`).
+- CRUD endpoints: `MappingEndpoints` (`/api/mappings`) — GET list (with `targetEntity`/`search` filters), GET by ID, POST create, PUT update, DELETE.
+- `IEntitySchemaService` (singleton) — caches `GetEntityList()` result server-lifetime (avoids reflection on every validation).
+- Frontend: "Load saved mapping" dropdown at top of step 3 + "Save as new mapping" form after confirm. Schema drift detected on load (fields no longer in entity are left unmapped).
 
 ### Component tree
 - `Excelmap/excelmap.component.ts` — parent/orchestrator (owns all state, drives the wizard).
@@ -155,13 +162,12 @@ store outside webroot. Excel is the **only** input format for now.
 
 - **Wizard steps 4–5 are stubs** — preview and verify/import are not yet built.
 - **No server-side upload/import endpoint yet** — file parsing is client-side only (preview).
-  Server-side validation + import pipeline is the next major backend task.
+  Server-side import pipeline is the next major backend task (ExcelDataReader streaming +
+  Npgsql COPY for bulk insert, single transaction, ImportBatch tracking).
 - **SourceKey + ImportBatch columns decided but not built** — plan: add to `BaseAuditableEntity`
   for audit traceability (which DB record came from which Excel row / import session).
   Enables future UPSERT without redesigning the schema.
 - **INSERT-only for MVP** — no UPSERT/update mode yet. Every import creates new records.
-- **No mapping save/load yet** — mapping config is in-memory only. Persistence (DB or file)
-  is planned but not started.
 - **`web-api-client.ts` is generated** — always edit backend endpoints then regenerate,
   never edit this file directly.
 - npm install scripts are pinned in `package.json` under `allowScripts` (esbuild, lmdb,
