@@ -1,0 +1,144 @@
+<section class="dashboard">
+  <header class="dashboard-header">
+    <h1>Import Dashboard</h1>
+    <p class="subtitle">Operations overview for Excel data imports.</p>
+  </header>
+
+  <!-- Key metrics -->
+  <section class="panel metrics">
+    @if (statisticsLoading()) {
+      <div class="loading"><dx-load-indicator [visible]="true" hint="Loading metrics&hellip;"></dx-load-indicator></div>
+    } @else if (statistics(); as s) {
+      <div class="metric-card">
+        <span class="metric-label">Total batches</span>
+        <span class="metric-value">{{ s.totalBatches }}</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Succeeded</span>
+        <span class="metric-value metric-success">{{ s.successCount }}</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Failed</span>
+        <span class="metric-value metric-failed">{{ s.failedCount }}</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Processing</span>
+        <span class="metric-value metric-processing">{{ s.processingCount }}</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Rows imported</span>
+        <span class="metric-value">{{ s.totalRowsImported | number }}</span>
+      </div>
+    } @else {
+      <p class="placeholder">No metrics available.</p>
+    }
+  </section>
+
+  <!-- Batch list -->
+  <section class="panel">
+    <h2>Recent imports</h2>
+    @if (batchesLoading()) {
+      <dx-load-indicator [visible]="true" hint="Loading batches&hellip;"></dx-load-indicator>
+    }
+    <dx-data-grid
+      [dataSource]="batches()"
+      [showBorders]="true"
+      [columnAutoWidth]="true"
+      [rowAlternationEnabled]="true"
+      [hoverStateEnabled]="true"
+      (onRowClick)="onBatchRowClick($event)"
+      [masterDetail]="{ enabled: false }">
+      <dxi-column dataField="created" dataType="datetime" caption="Created" [width]="170"></dxi-column>
+      <dxi-column dataField="fileName" caption="File"></dxi-column>
+      <dxi-column dataField="affectedTable" caption="Target table" [width]="180"></dxi-column>
+      <dxi-column dataField="status" caption="Status" [width]="120" cellTemplate="statusCell"></dxi-column>
+      <dxi-column dataField="totalRows" caption="Rows" [width]="90" format="#,##0"></dxi-column>
+      <dxi-column dataField="processedRows" caption="Imported" [width]="100" format="#,##0"></dxi-column>
+      <dxi-column dataField="skippedRows" caption="Rejected" [width]="100" format="#,##0"></dxi-column>
+      <dxi-column dataField="executedBy" caption="By" [width]="160"></dxi-column>
+      <div *dxTemplate="let cell of 'statusCell'">
+        @if (statusBadge(cell.data.status); as b) {
+          <span class="badge {{ b.cls }}">{{ b.label }}</span>
+        }
+      </div>
+    </dx-data-grid>
+    <p class="total-count">
+      @if (batchesTotalCount() > 0) { Showing {{ batches().length }} of {{ batchesTotalCount() }} batch(es). }
+    </p>
+  </section>
+
+  <!-- Journal detail (visible when a batch is selected) -->
+  @if (selectedBatchId() !== null) {
+    <section class="panel detail">
+      <header class="detail-header">
+        <div>
+          <h2>Batch #{{ selectedBatchId() }} — journal</h2>
+          @if (selectedBatch(); as b) {
+            <p class="detail-subtitle">
+              <strong>{{ b.fileName }}</strong> &rarr; {{ b.affectedTable }}
+              &middot; status:
+              @if (statusBadge(b.status); as bb) { <span class="badge {{ bb.cls }}">{{ bb.label }}</span> }
+              &middot; total {{ b.totalRows }} &middot; imported {{ b.processedRows }} &middot; rejected {{ b.skippedRows }}
+            </p>
+          }
+        </div>
+        <dx-button text="Close" (onClick)="closeDetail()"></dx-button>
+      </header>
+
+      @if (journalLoading()) {
+        <dx-load-indicator [visible]="true" hint="Loading journal&hellip;"></dx-load-indicator>
+      } @else if (journal().length === 0) {
+        <p class="placeholder">No journal rows for this batch.</p>
+      } @else {
+        <table class="journal-table">
+          <thead>
+            <tr>
+              <th style="width: 80px">Row</th>
+              <th style="width: 120px">Status</th>
+              <th>Reason / Payload</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (entry of journal(); track entry.id) {
+              <tr>
+                <td class="row-num">{{ entry.sourceKey }}</td>
+                <td>
+                  @if (journalStatusBadge(entry.status); as b) {
+                    <span class="badge {{ b.cls }}">{{ b.label }}</span>
+                  }
+                </td>
+                <td>
+                  @if (entry.errorMessage) {
+                    <div class="error-msg">{{ entry.errorMessage }}</div>
+                  }
+                  @if (entry.payload) {
+                    <pre class="payload">{{ formatPayload(entry.payload) }}</pre>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <p class="total-count">
+          Showing {{ journal().length }} of {{ journalTotalCount() }} journal row(s).
+        </p>
+      }
+    </section>
+  }
+
+  <!-- Saved mappings (kept from the scaffold; dashboard's secondary section) -->
+  <section class="panel">
+    <h2>Saved mappings</h2>
+    <dx-data-grid
+      [dataSource]="mappings()"
+      [showBorders]="true"
+      [columnAutoWidth]="true"
+      [rowAlternationEnabled]="true">
+      <dxi-column dataField="name" caption="Name"></dxi-column>
+      <dxi-column dataField="targetEntity" caption="Target entity"></dxi-column>
+      <dxi-column dataField="description" caption="Description"></dxi-column>
+      <dxi-column dataField="created" dataType="datetime" caption="Created"></dxi-column>
+      <dxi-column dataField="isDefault" dataType="boolean" caption="Default"></dxi-column>
+    </dx-data-grid>
+  </section>
+</section>
