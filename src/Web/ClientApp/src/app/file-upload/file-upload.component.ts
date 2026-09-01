@@ -38,27 +38,24 @@ export class FileUploadComponent {
     }
 
     isValidFileType(file: File): boolean {
-        const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'];
+        // Excel (.xlsx) only — CSV is not supported; the server only parses OOXML packages.
+        const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
         return allowedTypes.includes(file.type);
     }
 
     async validateFileContent(file: File) : Promise<boolean> {
-        if (file.type === 'text/csv') {
-            this.successMessage = 'Valid CSV file uploaded!';
-            return true;
-        }
-
         const buffer = await file.arrayBuffer();
         const bytes = new Uint8Array(buffer.slice(0, 4));
 
-        // Basic signature (magic number) checks
+        // Basic signature (magic number) check — the full OOXML / zip-bomb / macro
+        // validation is enforced on the server (XlsxPackageInspector).
         const xlsxHeader = [0x50, 0x4B, 0x03, 0x04];
 
         if (this.startsWith(bytes, xlsxHeader)) {
             this.successMessage = 'Valid XLSX file uploaded!';
             return true;
         } else {
-            this.errorMessage = 'Invalid file content detected!';
+            this.errorMessage = 'Invalid file content. Please upload a valid .xlsx workbook.';
         }
         return false;
     }
