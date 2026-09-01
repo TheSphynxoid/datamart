@@ -16,8 +16,8 @@ public class Import : IEndpointGroup
     public static void Map(RouteGroupBuilder groupBuilder)
     {
         groupBuilder.RequireAuthorization();
-        groupBuilder.MapPost(UploadFile).DisableAntiforgery();
-        groupBuilder.MapPost("validate", ValidateFile).DisableAntiforgery();
+        groupBuilder.MapPost(UploadFile);
+        groupBuilder.MapPost("validate", ValidateFile);
         groupBuilder.MapGet("batches/{id}", GetBatch);
         groupBuilder.MapGet("batches/{id}/preview", GetBatchPreview);
         groupBuilder.MapGet("batches/{id}/report", GetImportReport);
