@@ -155,7 +155,7 @@ public class ImportFileValidator
                     continue;
                 }
 
-                if (values[i] is null && requiredColumns.Contains(col.TargetColName))
+                if (ImportCellParser.IsEmpty(values[i]) && requiredColumns.Contains(col.TargetColName))
                 {
                     switch (emptyMode)
                     {

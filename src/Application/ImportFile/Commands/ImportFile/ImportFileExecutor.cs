@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data.Common;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -116,7 +117,6 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                     if (am.IsRequired)
                         requiredColumns.Add(am.TargetColName);
                 }
-
                 var columns = new List<ImportColumn>();
                 var columnStats = new List<ColumnStats>();
 
@@ -175,7 +175,7 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                                 UpdateStats(stats, values[i]);
                             }
 
-                            if (values[i] is null && requiredColumns.Contains(col.TargetColName))
+                            if (ImportCellParser.IsEmpty(values[i]) && requiredColumns.Contains(col.TargetColName))
                             {
                                 switch (job.EmptyMode)
                                 {
@@ -192,8 +192,10 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                                 }
                             }
                         }
+                        // DIAG (values omitted: out-of-range when iterating past activeMappings.Count; rawCells above suffice).
 
-                        // Row-level journal (FC-4): JSON snapshot of the mapped values plus
+
+                         // Row-level journal (FC-4): JSON snapshot of the mapped values plus
                         // the outcome, so the import report / a future dashboard can present it.
                         var payload = new Dictionary<string, object?>();
                         for (int i = 0; i < activeMappings.Count; i++)
@@ -291,7 +293,7 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                 await _context.SaveChangesAsync(cancellationToken);
             }
         }
-        catch
+        catch (Exception)
         {
             batch.Status = ImportStatus.Failed;
             await _context.SaveChangesAsync(cancellationToken);
