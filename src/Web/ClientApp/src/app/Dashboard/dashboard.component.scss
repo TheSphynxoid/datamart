@@ -54,14 +54,14 @@
   gap: 0.25rem;
   min-width: 140px;
   padding: 0.75rem 1rem;
-  border: 1px solid var(--dx-color-border, #e6e6e6);
+  border: 1px solid var(--dx-color-border);
   border-radius: 0.375rem;
-  background: var(--dx-component-color-bg, #fafafa);
+  background: color-mix(in srgb, var(--dx-component-color-bg) 70%, var(--dx-base-background-color, var(--dx-component-color-bg)));
 }
 
 .metric-label {
   font-size: 0.8rem;
-  color: var(--dx-texteditor-color-label, #6c757d);
+  color: var(--dx-texteditor-color-label);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -72,11 +72,13 @@
   line-height: 1.1;
 }
 
-.metric-success { color: #2e7d32; }
-.metric-failed  { color: #c62828; }
-.metric-processing { color: #1565c0; }
+.metric-success    { color: color-mix(in srgb, var(--dx-color-success) 80%, var(--dx-color-text)); }
+.metric-failed     { color: color-mix(in srgb, var(--dx-color-danger) 80%, var(--dx-color-text)); }
+.metric-processing { color: color-mix(in srgb, var(--dx-color-primary) 80%, var(--dx-color-text)); }
 
-/* Status / journal badges */
+/* Status / journal badges — theme-aware via DX tokens.
+   Text color uses the saturated token directly (no mix with --dx-color-text,
+   which is light in dark mode and would dilute the color into gray-white). */
 .badge {
   display: inline-block;
   padding: 0.15rem 0.55rem;
@@ -86,10 +88,48 @@
   line-height: 1.2;
   border: 1px solid transparent;
 }
-.badge-success    { background: #e6f4ea; color: #1e6a2a; border-color: #c9e7d1; }
-.badge-failed     { background: #fdecea; color: #8a1f17; border-color: #f5c6c2; }
-.badge-processing { background: #e3f0fb; color: #0d3f7a; border-color: #c8dcf2; }
-.badge-reverted   { background: #efe7f6; color: #4a2a72; border-color: #d9c9e9; }
+.badge-success {
+  background: color-mix(in srgb, var(--dx-color-success, #28a745) 18%, transparent);
+  color: var(--dx-color-success, #28a745);
+  border-color: color-mix(in srgb, var(--dx-color-success, #28a745) 45%, transparent);
+}
+.badge-failed {
+  background: color-mix(in srgb, var(--dx-color-danger, #dc3545) 18%, transparent);
+  color: var(--dx-color-danger, #dc3545);
+  border-color: color-mix(in srgb, var(--dx-color-danger, #dc3545) 45%, transparent);
+}
+.badge-processing {
+  background: color-mix(in srgb, var(--dx-color-primary, #007bff) 18%, transparent);
+  color: var(--dx-color-primary, #007bff);
+  border-color: color-mix(in srgb, var(--dx-color-primary, #007bff) 45%, transparent);
+}
+.badge-reverted {
+  background: color-mix(in srgb, #6f42c1 18%, transparent);
+  color: #6f42c1;
+  border-color: color-mix(in srgb, #6f42c1 45%, transparent);
+}
+
+/* Minimal in-cell indicator for batches whose journal is still uploading
+   (or marked JournalIncomplete). Just a small dot, no text — the cell stays
+   small and the full progress text lives in the batch detail panel header. */
+.journal-indicator {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  margin-left: 0.4rem;
+  vertical-align: middle;
+  background: var(--dx-color-primary, #007bff);
+  animation: journal-pulse 1.4s ease-in-out infinite;
+}
+.journal-indicator.journal-indicator-incomplete {
+  background: var(--dx-color-danger, #dc3545);
+  animation: none;
+}
+@keyframes journal-pulse {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 1;    }
+}
 
 .total-count {
   margin: 0.5rem 0 0;
@@ -112,8 +152,194 @@
 
 .detail-subtitle {
   margin: 0;
-  color: var(--dx-texteditor-color-label, #555);
+  color: var(--dx-texteditor-color-label);
   font-size: 0.9rem;
+}
+
+.detail-journal-progress {
+  margin: 0.4rem 0 0;
+  padding: 0.4rem 0.7rem;
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--dx-color-primary, #007bff) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--dx-color-primary, #007bff) 35%, transparent);
+  color: var(--dx-color-primary, #007bff);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.detail-journal-progress.detail-journal-incomplete {
+  background: color-mix(in srgb, var(--dx-color-danger, #dc3545) 14%, transparent);
+  border-color: color-mix(in srgb, var(--dx-color-danger, #dc3545) 45%, transparent);
+  color: var(--dx-color-danger, #dc3545);
+}
+
+// ── Panel header + filter toolbar ──────────────────────────────────────────────
+.panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+
+  h2 { margin: 0; }
+}
+
+.panel-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--dx-texteditor-color-label);
+}
+
+.page-size-label {
+  white-space: nowrap;
+}
+
+:host ::ng-deep .panel-header-actions dx-select-box {
+  width: 5rem;
+}
+
+.filter-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--dx-color-border);
+  border-radius: var(--dx-border-radius);
+  background: var(--dx-base-background-color, var(--dx-component-color-bg));
+}
+
+.filter-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 0.75rem;
+}
+
+.filter-presets {
+  border-top: 1px dashed var(--dx-color-border);
+  padding-top: 0.5rem;
+}
+
+.preset-label {
+  font-size: 0.8rem;
+  color: var(--dx-texteditor-color-label);
+  font-weight: 500;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 9rem;
+
+  > span {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--dx-texteditor-color-label);
+  }
+}
+
+.filter-field-search {
+  flex: 1 1 14rem;
+  min-width: 12rem;
+}
+
+:host ::ng-deep .filter-field dx-text-box,
+:host ::ng-deep .filter-field dx-select-box,
+:host ::ng-deep .filter-field dx-date-box {
+  width: 100%;
+}
+
+.clear-filters-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--dx-color-danger) 40%, transparent);
+  border-radius: var(--dx-border-radius);
+  background: transparent;
+  color: color-mix(in srgb, var(--dx-color-danger) 75%, var(--dx-color-text));
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-left: auto;
+
+  &:hover {
+    background: color-mix(in srgb, var(--dx-color-danger) 10%, transparent);
+  }
+}
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem 0.2rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--dx-color-primary) 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--dx-color-primary) 12%, transparent);
+  color: color-mix(in srgb, var(--dx-color-primary) 80%, var(--dx-color-text));
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.filter-chip-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--dx-color-primary) 25%, transparent);
+  }
+}
+
+.filtered-hint {
+  margin-inline-start: 0.4rem;
+  color: var(--dx-color-primary);
+  font-weight: 500;
+}
+
+.payload-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--dx-color-border);
+  border-radius: var(--dx-border-radius);
+  background: var(--dx-component-color-bg);
+  color: var(--dx-texteditor-color-label);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--dx-color-primary) 10%, transparent);
+    color: var(--dx-color-text);
+  }
+
+  &.active {
+    border-color: color-mix(in srgb, var(--dx-color-primary) 45%, transparent);
+    background: color-mix(in srgb, var(--dx-color-primary) 12%, transparent);
+    color: color-mix(in srgb, var(--dx-color-primary) 80%, var(--dx-color-text));
+  }
 }
 
 .journal-table {
@@ -142,14 +368,15 @@
 }
 
 .error-msg {
-  color: #8a1f17;
+  color: color-mix(in srgb, var(--dx-color-danger) 80%, var(--dx-color-text));
   font-weight: 500;
   margin-bottom: 0.25rem;
 }
 
 .payload {
-  background: #f6f8fa;
-  border: 1px solid #e1e4e8;
+  background: color-mix(in srgb, var(--dx-base-background-color, var(--dx-component-color-bg)) 60%, var(--dx-component-color-bg));
+  color: var(--dx-color-text);
+  border: 1px solid var(--dx-color-border);
   border-radius: 0.25rem;
   padding: 0.4rem 0.5rem;
   margin: 0;

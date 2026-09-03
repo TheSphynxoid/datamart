@@ -1,0 +1,89 @@
+:host {
+  display: block;
+  width: 100%;
+}
+
+.report-errors-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.4rem 0.6rem;
+  background: color-mix(in srgb, var(--dx-color-warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--dx-color-warning) 35%, transparent);
+  border-radius: var(--dx-border-radius) var(--dx-border-radius) 0 0;
+  font-size: 0.85rem;
+}
+
+.report-errors-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: color-mix(in srgb, var(--dx-color-warning) 70%, var(--dx-color-text));
+}
+
+.report-errors-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.report-errors-scroll {
+  max-height: 22rem;
+  overflow: auto;
+  border: 1px solid var(--dx-color-border);
+  border-top: none;
+  border-radius: 0 0 var(--dx-border-radius) var(--dx-border-radius);
+  background: var(--dx-base-background-color, var(--dx-component-color-bg));
+
+  &.expanded {
+    max-height: 60vh;
+  }
+}
+
+.report-errors {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+
+  th, td {
+    text-align: left;
+    padding: 0.35rem 0.6rem;
+    border-bottom: 1px solid var(--dx-color-border);
+    vertical-align: top;
+  }
+
+  th {
+    position: sticky;
+    top: 0;
+    background: var(--dx-component-color-bg);
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: var(--dx-texteditor-color-label);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    z-index: 1;
+  }
+
+  tbody tr:hover {
+    background: color-mix(in srgb, var(--dx-color-primary) 6%, transparent);
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .row-num {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    text-align: right;
+    width: 5rem;
+    color: var(--dx-texteditor-color-label);
+  }
+}
+
+.report-errors-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: var(--dx-texteditor-color-label);
+}

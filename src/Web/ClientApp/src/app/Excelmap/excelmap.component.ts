@@ -1,6 +1,9 @@
 import { Component, OnInit, OnDestroy, signal, effect, computed } from '@angular/core';
-import { EntitySchemaClient, EntitySchemaDto, EntityPropertyDto, ImportClient, MappingEndpointsClient, MappingDto, ColumnMappingDto, CreateMappingCommand, ImportBatchDto, ImportReportDto } from '../web-api-client';
+import { EntitySchemaClient, EntitySchemaDto, EntityPropertyDto, ImportClient, MappingEndpointsClient, MappingDto, ColumnMappingDto, CreateMappingCommand, ImportBatchDto, ImportReportDto, ValidationStatusDto } from '../web-api-client';
 import type { ExcelPreviewResult } from './excel.worker';
+import { detectDateFormat, detectTimeFormat } from './format-detection';
+import { transformCell, FormatCategory } from './cell-transform';
+import { startPoller, PollerHandle } from '../util/poll';
 
 type StepStatus = 'locked' | 'active' | 'completed';
 
@@ -17,8 +20,6 @@ interface ColumnMapping {
   boolTrueValue?: string;
   boolFalseValue?: string;
 }
-
-type FormatCategory = 'date' | 'time' | 'decimal' | 'boolean' | 'none';
 
 interface FormatEntry {
   index: number;
@@ -177,7 +178,10 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
   protected importReport = signal<ImportReportDto | null>(null);
   protected validateReport = signal<ImportReportDto | null>(null);
   protected validating = signal(false);
-  private importPoll?: number;
+  protected validationProgress = signal<ValidationStatusDto | null>(null);
+  protected validationError = signal<string | null>(null);
+  private importPoll: PollerHandle = { stop: () => {} };
+  private validationPoll: PollerHandle = { stop: () => {} };
 
   protected emptyMode = signal<number>(0);
 
@@ -190,7 +194,7 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
       const transformed: Record<string, unknown> = {};
       for (const col of m) {
         if (!col.dbField) continue;
-        transformed[col.dbField] = this.transformCell(row[col.excelColumn], col);
+        transformed[col.dbField] = transformCell(row[col.excelColumn], this.formatCategoryFor(col.dbField), col);
       }
       return transformed;
     });
@@ -243,7 +247,8 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.excelWorker?.terminate();
-    window.clearInterval(this.importPoll);
+    this.importPoll.stop();
+    this.validationPoll.stop();
   }
 
   protected statusOf(index: number): StepStatus {
@@ -363,45 +368,43 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
   }
 
   private pollImport(batchId: number): void {
-    window.clearInterval(this.importPoll);
-    this.importPoll = window.setInterval(() => {
-      this.importClient.batches2(batchId).subscribe({
-        next: (batch) => {
-          this.importProgress.set(batch);
-          if (batch.status !== 0) { // 0 = Processing
-            window.clearInterval(this.importPoll);
-            this.importPoll = undefined;
-            this.importing.set(false);
-            if (batch.status === 1) { // 1 = Success
-              this.importResult.set({
-                success: true,
-                batchId: batch.id,
-                importedRows: batch.totalRows - batch.skippedRows,
-                skippedRows: batch.skippedRows,
-                skippedRowsPreview: batch.skippedRowsPreview ?? null,
-              });
-                this.verified.set(true);
-                this.fetchImportReport(batch.id);
-              } else {
-              this.importResult.set({
-                success: false,
-                error: 'Import failed. Check server logs.',
-              });
-            }
-          }
-        },
-        error: (error) => {
-          window.clearInterval(this.importPoll);
-          this.importPoll = undefined;
+    this.importPoll.stop();
+    this.importPoll = startPoller<ImportBatchDto>(
+      () => this.importClient.batches2(batchId),
+      (batch) => batch.status !== 0, // 0 = Processing
+      (batch) => this.importProgress.set(batch),
+      (outcome) => {
+        if (outcome.kind === 'error') {
           this.importing.set(false);
+          const error = outcome.error as { message?: string };
           this.importResult.set({
             success: false,
             error: error?.message ?? 'Import failed. Check server logs.',
           });
-          console.error('Polling import failed', error);
-        },
-      });
-    }, 500);
+          console.error('Polling import failed', outcome.error);
+          return;
+        }
+        const batch = outcome.value;
+        this.importing.set(false);
+        if (batch.status === 1) { // 1 = Success
+          this.importResult.set({
+            success: true,
+            batchId: batch.id,
+            importedRows: batch.totalRows - batch.skippedRows,
+            skippedRows: batch.skippedRows,
+            skippedRowsPreview: batch.skippedRowsPreview ?? null,
+          });
+          this.verified.set(true);
+          this.fetchImportReport(batch.id);
+        } else {
+          this.importResult.set({
+            success: false,
+            error: 'Import failed. Check server logs.',
+          });
+        }
+      },
+      { intervalMs: 500 },
+    );
   }
 
   protected progressPercent(batch: ImportBatchDto): number {
@@ -422,18 +425,43 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
     if (!file || mappingId === null) return;
 
     this.validating.set(true);
+    this.validationError.set(null);
+    this.validateReport.set(null);
+    this.validationProgress.set(null);
+
     const fileParam = { data: file, fileName: file.name };
     this.importClient.validate(mappingId, this.emptyMode(), this.selectedSheetIndex(), fileParam).subscribe({
-      next: report => {
-        this.validateReport.set(report);
+      next: (started) => this.pollValidation(started.validationId),
+      error: (error) => {
         this.validating.set(false);
-      },
-      error: error => {
-        this.validateReport.set(null);
-        this.validating.set(false);
-        this.parseError.set(error?.message ?? 'Validation failed. Check server logs.');
+        this.validationError.set(error?.message ?? 'Validation failed. Check server logs.');
+        console.error('Validation start failed', error);
       },
     });
+  }
+
+  private pollValidation(validationId: string): void {
+    this.validationPoll.stop();
+    this.validationPoll = startPoller<ValidationStatusDto>(
+      () => this.importClient.validations(validationId),
+      (status) => status.status === 'Done' || status.status === 'Failed',
+      (status) => this.validationProgress.set(status),
+      (outcome) => {
+        this.validating.set(false);
+        if (outcome.kind === 'error') {
+          this.validationError.set('Could not read validation progress.');
+          console.error('Polling validation failed', outcome.error);
+          return;
+        }
+        const status = outcome.value;
+        if (status.status === 'Failed') {
+          this.validationError.set(status.error ?? 'Validation failed. Check server logs.');
+          return;
+        }
+        this.validateReport.set(status.report ?? null);
+      },
+      { intervalMs: 500 },
+    );
   }
 
   protected onMappingChanged(index: number, e: { value?: string | null; event?: Event }): void {
@@ -458,108 +486,6 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
         };
       })
     );
-  }
-
-  private transformCell(raw: unknown, col: ColumnMapping): unknown {
-    if (raw === null || raw === undefined || raw === '') return null;
-
-    const category = this.formatCategoryFor(col.dbField!);
-    switch (category) {
-      case 'date': {
-        if (raw instanceof Date) return raw;
-        if (typeof raw === 'string') {
-          if (col.dateFormat) return this.tryParseDate(raw, col.dateFormat);
-          return raw;
-        }
-        return raw;
-      }
-      case 'time': {
-        if (typeof raw === 'string') {
-          if (raw.trim() === '') return null;
-          if (col.timeFormat) {
-            const parsed = this.tryParseTime(raw, col.timeFormat);
-            if (parsed) return parsed;
-          }
-          return raw;
-        }
-        if (raw instanceof Date) return this.toTimeString(raw.getHours(), raw.getMinutes(), raw.getSeconds());
-        if (typeof raw === 'number') {
-          const totalSeconds = Math.round(raw * 86400);
-          return this.toTimeString(
-            Math.floor(totalSeconds / 3600) % 24,
-            Math.floor(totalSeconds / 60) % 60,
-            totalSeconds % 60
-          );
-        }
-        return raw;
-      }
-      case 'decimal': {
-        if (typeof raw === 'number') return raw;
-        if (typeof raw === 'string') {
-          let s = raw;
-          if (col.stripSymbols) s = s.replace(/[^\d.,-]/g, '');
-          if (col.decimalSeparator === ',') s = s.replace(/\./g, '').replace(',', '.');
-          else s = s.replace(/,/g, '');
-          const val = parseFloat(s);
-          return isNaN(val) ? raw : val;
-        }
-        return raw;
-      }
-      case 'boolean': {
-        if (typeof raw === 'boolean') return raw;
-        if (typeof raw === 'string') {
-          if (col.boolTrueValue && raw.toLowerCase() === col.boolTrueValue.toLowerCase()) return true;
-          if (col.boolFalseValue && raw.toLowerCase() === col.boolFalseValue.toLowerCase()) return false;
-        }
-        return raw;
-      }
-      default:
-        return raw;
-    }
-  }
-
-  private tryParseDate(value: string, format: string): Date | string {
-    const formatMap: Record<string, (s: string) => Date | null> = {
-      'dd/MM/yyyy': (s) => { const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); return m ? new Date(+m[3], +m[2] - 1, +m[1]) : null; },
-      'dd-MM-yyyy': (s) => { const m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/); return m ? new Date(+m[3], +m[2] - 1, +m[1]) : null; },
-      'dd.MM.yyyy': (s) => { const m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); return m ? new Date(+m[3], +m[2] - 1, +m[1]) : null; },
-      'MM/dd/yyyy': (s) => { const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); return m ? new Date(+m[3], +m[1] - 1, +m[2]) : null; },
-      'MM-dd-yyyy': (s) => { const m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/); return m ? new Date(+m[3], +m[1] - 1, +m[2]) : null; },
-      'MM.dd.yyyy': (s) => { const m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/); return m ? new Date(+m[3], +m[1] - 1, +m[2]) : null; },
-      'yyyy-MM-dd': (s) => { const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; },
-      'yyyy/MM/dd': (s) => { const m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; },
-      'yyyy.MM.dd': (s) => { const m = s.match(/^(\d{4})\.(\d{1,2})\.(\d{1,2})$/); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; },
-    };
-    const parser = formatMap[format];
-    if (!parser) return value;
-    return parser(value) ?? value;
-  }
-
-  private tryParseTime(value: string, format: string): string | null {
-    const m = value.trim();
-    const timeMap: Record<string, RegExp> = {
-      'HHmmss': /^(\d{1,2})(\d{2})(\d{2})$/,
-      'HH:mm:ss': /^(\d{1,2}):(\d{2}):(\d{2})$/,
-      'HH:mm': /^(\d{1,2}):(\d{2})$/,
-    };
-    const re = timeMap[format];
-    if (!re) return null;
-    const parts = m.match(re);
-    if (!parts) return null;
-    let h = parseInt(parts[1], 10);
-    if (h > 23) return null;
-    const min = parseInt(parts[2], 10);
-    if (min > 59) return null;
-    if (parts.length > 3) {
-      const s = parseInt(parts[3], 10);
-      if (s > 59) return null;
-      return this.toTimeString(h, min, s);
-    }
-    return this.toTimeString(h, min, 0);
-  }
-
-  private toTimeString(h: number, m: number, s: number): string {
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }
 
   protected sampleFor(column: string): string {
@@ -824,46 +750,17 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
     if (!dbField) return {};
     const category = this.formatCategoryFor(dbField);
     if (category === 'date') {
-      const dateFormat = this.detectDateFormat(this.sampleFor(excelColumn));
+      const dateFormat = detectDateFormat(this.sampleFor(excelColumn));
       return dateFormat ? { dateFormat, dateFormatDetected: true } : {};
     }
     if (category === 'time') {
-      const timeFormat = this.detectTimeFormat(this.sampleFor(excelColumn));
+      const timeFormat = detectTimeFormat(this.sampleFor(excelColumn));
       return timeFormat ? { timeFormat, timeFormatDetected: true } : {};
     }
     if (category === 'decimal') {
       return { decimalSeparator: '.' };
     }
     return {};
-  }
-
-  private detectDateFormat(sample: string): string | null {
-    const s = sample.trim();
-    const iso = s.match(/^(\d{4})([/\-.])(\d{1,2})\2(\d{1,2})$/);
-    if (iso) return `yyyy${iso[2]}MM${iso[2]}dd`;
-    const num = s.match(/^(\d{1,2})([/\-.])(\d{1,2})\2(\d{4})$/);
-    if (num) {
-      const a = parseInt(num[1], 10);
-      const b = parseInt(num[3], 10);
-      if (a > 12 && b <= 12) return `dd${num[2]}MM${num[2]}yyyy`;
-      if (b > 12 && a <= 12) return `MM${num[2]}dd${num[2]}yyyy`;
-    }
-    return null;
-  }
-
-  private detectTimeFormat(sample: string): string | null {
-    const s = sample.trim();
-    const compact = s.match(/^(\d{2})(\d{2})(\d{2})$/);
-    if (compact) {
-      const h = parseInt(compact[1], 10);
-      const m = parseInt(compact[2], 10);
-      const sec = parseInt(compact[3], 10);
-      if (h <= 23 && m <= 59 && sec <= 59) return 'HHmmss';
-    }
-    if (/^\d{1,2}:\d{2}:\d{2}$/.test(s)) return 'HH:mm:ss';
-    if (/^\d{1,2}:\d{2}$/.test(s)) return 'HH:mm';
-    if (/^\d{1,2}:\d{2}\s?(am|pm)$/i.test(s)) return 'h:mm tt';
-    return null;
   }
 
   private priorStepsDone(index: number): boolean {
@@ -887,6 +784,11 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
     }
   }
 
+  protected resetWizard(): void {
+    this.resetFrom(0);
+    this.currentStepId.set('target');
+  }
+
   private resetFrom(start: number): void {
     for (let i = start; i < this.steps.length; i++) {
       this.clearStep(i);
@@ -903,7 +805,7 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
         this.sheetNames.set([]);
         this.selectedSheetIndex.set(0);
         this.parseError.set(null);
-        this.validateReport.set(null);
+        this.clearValidationState();
         break;
       case 2:
         this.mapping.set(null);
@@ -913,7 +815,7 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
         this.mappingName.set('');
         this.mappingDescription.set('');
         this.savedMappingId.set(null);
-        this.validateReport.set(null);
+        this.clearValidationState();
         break;
       case 3: this.previewData.set(null); break;
       case 4:
@@ -922,9 +824,18 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
         this.importReport.set(null);
         this.importProgress.set(null);
         this.importing.set(false);
-        window.clearInterval(this.importPoll);
-        this.importPoll = undefined;
+        this.importPoll.stop();
+        this.importPoll = { stop: () => {} };
         break;
     }
+  }
+
+  private clearValidationState(): void {
+    this.validateReport.set(null);
+    this.validationError.set(null);
+    this.validationProgress.set(null);
+    this.validating.set(false);
+    this.validationPoll.stop();
+    this.validationPoll = { stop: () => {} };
   }
 }

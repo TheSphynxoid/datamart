@@ -253,19 +253,6 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                     cancellationToken,
                     UpdateProgressAsync);
 
-                // Persist the row-level journal only after the COPY committed, so a failed
-                // import leaves zero journal rows (consistent with "no partial data").
-                // A journal-write failure must not turn a successful import into a failure.
-                try
-                {
-                    await _context.ImportRecords.AddRangeAsync(importRecords, cancellationToken);
-                    await _context.SaveChangesAsync(cancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to write import journal for batch {BatchId}.", batch.Id);
-                }
-
                 // Build control totals JSON (FC-1)
                 var controlTotals = new
                 {
@@ -290,13 +277,82 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                 batch.SkippedRowsPreview = skippedRows.Count > 0
                     ? string.Join(", ", skippedRows.Take(10)) + (skippedRows.Count > 10 ? "..." : "")
                     : null;
-                await _context.SaveChangesAsync(cancellationToken);
+                // JournalRowsWritten stays at 0 until the post-COPY journal upload
+                // catches up. The dashboard uses (Status=Success, JournalRowsWritten
+                // < TotalRows) to show the "Journal uploading" pill.
+                batch.JournalRowsWritten = 0;
+
+                // Terminal status write uses CancellationToken.None: even if the
+                // BackgroundService stoppingToken is already cancelled (Ctrl+C,
+                // container stop, deploy), the batch MUST land in Success so the
+                // dashboard never reports a stuck Processing batch.
+                await _context.SaveChangesAsync(CancellationToken.None);
+
+                // Persist the row-level journal in chunks after the COPY committed,
+                // so a failed import leaves zero journal rows (consistent with "no
+                // partial data"). A journal-write failure must not turn a successful
+                // import into a failure.
+                //
+                // Chunked to keep EF's change tracker bounded: tracking 1M+ entities
+                // in a single SaveChanges stalls the change tracker and generates
+                // multi-MB batched INSERTs that can hang the pipeline. 5,000 per
+                // chunk keeps each round-trip small (~hundreds of KB of payload) and
+                // the change tracker memory bounded.
+                //
+                // The import is already Success from the user's perspective (target
+                // table is committed). The journal uploads in the background; each
+                // chunk bumps JournalRowsWritten so the dashboard can show the
+                // "Journal uploading" pill progress and hide it when the catch-up
+                // is complete.
+                const int journalChunkSize = 5_000;
+                for (int offset = 0; offset < importRecords.Count; offset += journalChunkSize)
+                {
+                    var chunkSize = Math.Min(journalChunkSize, importRecords.Count - offset);
+                    var chunk = importRecords.GetRange(offset, chunkSize);
+                    try
+                    {
+                        await _context.ImportRecords.AddRangeAsync(chunk, CancellationToken.None);
+                        await _context.SaveChangesAsync(CancellationToken.None);
+                        batch.JournalRowsWritten = offset + chunkSize;
+                        await _context.SaveChangesAsync(CancellationToken.None);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Best-effort: a missing journal is logged but does not roll
+                        // back the imported rows. The import is logically Success.
+                        // Mark JournalIncomplete so the dashboard surfaces the audit gap
+                        // (the remaining rows cannot be re-derived — the source file
+                        // is already deleted by the finally block below).
+                        _logger.LogWarning(ex, "Failed to write import journal chunk (offset {Offset}, size {ChunkSize}) for batch {BatchId}.", offset, chunkSize, batch.Id);
+                        batch.JournalIncomplete = true;
+                        try
+                        {
+                            await _context.SaveChangesAsync(CancellationToken.None);
+                        }
+                        catch (Exception saveEx)
+                        {
+                            _logger.LogWarning(saveEx, "Failed to persist JournalIncomplete flag for batch {BatchId}.", batch.Id);
+                        }
+                        break;
+                    }
+                }
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Import failed for batch {BatchId}.", batch.Id);
             batch.Status = ImportStatus.Failed;
-            await _context.SaveChangesAsync(cancellationToken);
+            // Same reason as above — the batch MUST land in Failed even on shutdown.
+            // Last-resort: if even the terminal save fails (e.g. DB is gone), log
+            // loudly so the stale-batch sweep on next startup can take over.
+            try
+            {
+                await _context.SaveChangesAsync(CancellationToken.None);
+            }
+            catch (Exception saveEx)
+            {
+                _logger.LogError(saveEx, "Failed to persist Failed status for batch {BatchId}; the next start-up sweep will reconcile.", batch.Id);
+            }
             throw;
         }
         finally

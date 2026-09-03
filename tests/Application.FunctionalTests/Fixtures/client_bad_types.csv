@@ -1,0 +1,7 @@
+AccountNumber,ClientName,Balance,OpenedDate
+A-020,Mia Tanaka,1500.00,2024-01-20
+A-021,Noah Becker,abc,2024-02-25
+A-022,Olivia Stein,3000.00,2024-03-30
+A-023,Paolo Ricci,4000.00,not-a-date
+A-024,Quinn Adler,not-a-number,2024-05-10
+A-025,Rita Hahn,6000.00,2024-06-20

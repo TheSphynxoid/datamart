@@ -33,9 +33,10 @@ public class Dashboard : IEndpointGroup
         [FromQuery] ImportStatus? status = null,
         [FromQuery] string? affectedTable = null,
         [FromQuery] DateTimeOffset? from = null,
-        [FromQuery] DateTimeOffset? to = null)
+        [FromQuery] DateTimeOffset? to = null,
+        [FromQuery] string? search = null)
     {
-        var result = await sender.Send(new GetImportBatchesQuery(page, pageSize, status, affectedTable, from, to));
+        var result = await sender.Send(new GetImportBatchesQuery(page, pageSize, status, affectedTable, from, to, search));
         return TypedResults.Ok(result);
     }
 
@@ -43,11 +44,12 @@ public class Dashboard : IEndpointGroup
         ISender sender,
         int id,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50)
+        [FromQuery] int pageSize = 50,
+        [FromQuery] ImportRowStatus? status = null)
     {
         // The journal handler checks batch existence and throws NotFoundException if
         // the batch id doesn't exist; the global exception handler maps that to 404.
-        var result = await sender.Send(new GetImportJournalQuery(id, page, pageSize));
+        var result = await sender.Send(new GetImportJournalQuery(id, page, pageSize, status));
         return TypedResults.Ok(result);
     }
 }

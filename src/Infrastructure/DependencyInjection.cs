@@ -58,6 +58,13 @@ public static class DependencyInjection
         builder.Services.AddSingleton<IImportJobQueue, ImportJobQueue>();
         builder.Services.AddHostedService<ImportProcessingService>();
 
+        // Async validation pipeline: separate channel + worker so a long
+        // dry-run never blocks (or is blocked by) a real import. Progress
+        // lives in memory; lost on process restart by design.
+        builder.Services.AddSingleton<IValidationProgressStore, InMemoryValidationProgressStore>();
+        builder.Services.AddSingleton<IValidationJobQueue, ValidationJobQueue>();
+        builder.Services.AddHostedService<ValidationProcessingService>();
+
         builder.Services.AddScoped<IAccessLogService, AccessLogService>();
     }
 }

@@ -102,15 +102,17 @@ export interface IDashboardClient {
      * @param affectedTable (optional) 
      * @param from (optional) 
      * @param to (optional) 
+     * @param search (optional) 
      * @return OK
      */
-    batches(page: number | undefined, pageSize: number | undefined, status: number | undefined, affectedTable: string | undefined, from: Date | undefined, to: Date | undefined): Observable<ImportBatchesPage>;
+    batches(page: number | undefined, pageSize: number | undefined, status: number | undefined, affectedTable: string | undefined, from: Date | undefined, to: Date | undefined, search: string | undefined): Observable<ImportBatchesPage>;
     /**
      * @param page (optional) 
      * @param pageSize (optional) 
+     * @param status (optional) 
      * @return OK
      */
-    journal(id: number, page: number | undefined, pageSize: number | undefined): Observable<ImportJournalPage>;
+    journal(id: number, page: number | undefined, pageSize: number | undefined, status: number | undefined): Observable<ImportJournalPage>;
 }
 
 @Injectable({
@@ -196,9 +198,10 @@ export class DashboardClient implements IDashboardClient {
      * @param affectedTable (optional) 
      * @param from (optional) 
      * @param to (optional) 
+     * @param search (optional) 
      * @return OK
      */
-    batches(page: number | undefined, pageSize: number | undefined, status: number | undefined, affectedTable: string | undefined, from: Date | undefined, to: Date | undefined): Observable<ImportBatchesPage> {
+    batches(page: number | undefined, pageSize: number | undefined, status: number | undefined, affectedTable: string | undefined, from: Date | undefined, to: Date | undefined, search: string | undefined): Observable<ImportBatchesPage> {
         let url_ = this.baseUrl + "/api/Dashboard/batches?";
         if (page === null)
             throw new globalThis.Error("The parameter 'page' cannot be null.");
@@ -224,6 +227,10 @@ export class DashboardClient implements IDashboardClient {
             throw new globalThis.Error("The parameter 'to' cannot be null.");
         else if (to !== undefined)
             url_ += "to=" + encodeURIComponent(to ? "" + to.toISOString() : "") + "&";
+        if (search === null)
+            throw new globalThis.Error("The parameter 'search' cannot be null.");
+        else if (search !== undefined)
+            url_ += "search=" + encodeURIComponent("" + search) + "&";
         url_ = url_.replace(/[?&]$/, "");
 
         let options_ : any = {
@@ -285,9 +292,10 @@ export class DashboardClient implements IDashboardClient {
     /**
      * @param page (optional) 
      * @param pageSize (optional) 
+     * @param status (optional) 
      * @return OK
      */
-    journal(id: number, page: number | undefined, pageSize: number | undefined): Observable<ImportJournalPage> {
+    journal(id: number, page: number | undefined, pageSize: number | undefined, status: number | undefined): Observable<ImportJournalPage> {
         let url_ = this.baseUrl + "/api/Dashboard/batches/{id}/journal?";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
@@ -300,6 +308,10 @@ export class DashboardClient implements IDashboardClient {
             throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
         else if (pageSize !== undefined)
             url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
+        if (status === null)
+            throw new globalThis.Error("The parameter 'status' cannot be null.");
+        else if (status !== undefined)
+            url_ += "status=" + encodeURIComponent("" + status) + "&";
         url_ = url_.replace(/[?&]$/, "");
 
         let options_ : any = {
@@ -466,7 +478,11 @@ export interface IImportClient {
      * @param file (optional) 
      * @return OK
      */
-    validate(mappingId: number, emptyMode: number | undefined, sheetIndex: number | undefined, file: FileParameter | undefined): Observable<ImportReportDto>;
+    validate(mappingId: number, emptyMode: number | undefined, sheetIndex: number | undefined, file: FileParameter | undefined): Observable<ValidationStarted>;
+    /**
+     * @return OK
+     */
+    validations(id: string): Observable<ValidationStatusDto>;
     /**
      * @return OK
      */
@@ -589,7 +605,7 @@ export class ImportClient implements IImportClient {
      * @param file (optional) 
      * @return OK
      */
-    validate(mappingId: number, emptyMode: number | undefined, sheetIndex: number | undefined, file: FileParameter | undefined): Observable<ImportReportDto> {
+    validate(mappingId: number, emptyMode: number | undefined, sheetIndex: number | undefined, file: FileParameter | undefined): Observable<ValidationStarted> {
         let url_ = this.baseUrl + "/api/Import/validate?";
         if (mappingId === undefined || mappingId === null)
             throw new globalThis.Error("The parameter 'mappingId' must be defined and cannot be null.");
@@ -627,14 +643,14 @@ export class ImportClient implements IImportClient {
                 try {
                     return this.processValidate(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<ImportReportDto>;
+                    return _observableThrow(e) as any as Observable<ValidationStarted>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<ImportReportDto>;
+                return _observableThrow(response_) as any as Observable<ValidationStarted>;
         }));
     }
 
-    protected processValidate(response: HttpResponseBase): Observable<ImportReportDto> {
+    protected processValidate(response: HttpResponseBase): Observable<ValidationStarted> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -645,7 +661,77 @@ export class ImportClient implements IImportClient {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
             let resultData200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver);
-            result200 = ImportReportDto.fromJS(resultData200);
+            result200 = ValidationStarted.fromJS(resultData200);
+            return _observableOf(result200);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            let resultData400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver);
+                result400 = resultData400 !== undefined ? resultData400 : null as any;
+    
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 401) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Unauthorized", status, _responseText, _headers);
+            }));
+        } else if (status === 403) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Forbidden", status, _responseText, _headers);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    validations(id: string): Observable<ValidationStatusDto> {
+        let url_ = this.baseUrl + "/api/Import/validations/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processValidations(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processValidations(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<ValidationStatusDto>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<ValidationStatusDto>;
+        }));
+    }
+
+    protected processValidations(response: HttpResponseBase): Observable<ValidationStatusDto> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            let resultData200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver);
+            result200 = ValidationStatusDto.fromJS(resultData200);
             return _observableOf(result200);
             }));
         } else if (status === 400) {
@@ -2715,6 +2801,8 @@ export class ImportBatchDto implements IImportBatchDto {
     totalRows!: number;
     processedRows!: number;
     skippedRows!: number;
+    journalRowsWritten!: number;
+    journalIncomplete!: boolean;
     skippedRowsPreview!: string | undefined;
 
     [key: string]: any;
@@ -2741,6 +2829,8 @@ export class ImportBatchDto implements IImportBatchDto {
             this.totalRows = _data["totalRows"];
             this.processedRows = _data["processedRows"];
             this.skippedRows = _data["skippedRows"];
+            this.journalRowsWritten = _data["journalRowsWritten"];
+            this.journalIncomplete = _data["journalIncomplete"];
             this.skippedRowsPreview = _data["skippedRowsPreview"];
         }
     }
@@ -2765,6 +2855,8 @@ export class ImportBatchDto implements IImportBatchDto {
         data["totalRows"] = this.totalRows;
         data["processedRows"] = this.processedRows;
         data["skippedRows"] = this.skippedRows;
+        data["journalRowsWritten"] = this.journalRowsWritten;
+        data["journalIncomplete"] = this.journalIncomplete;
         data["skippedRowsPreview"] = this.skippedRowsPreview;
         return data;
     }
@@ -2778,6 +2870,8 @@ export interface IImportBatchDto {
     totalRows: number;
     processedRows: number;
     skippedRows: number;
+    journalRowsWritten: number;
+    journalIncomplete: boolean;
     skippedRowsPreview: string | undefined;
 
     [key: string]: any;
@@ -2862,6 +2956,7 @@ export class ImportBatchListItemDto implements IImportBatchListItemDto {
     totalRows!: number;
     processedRows!: number;
     skippedRows!: number;
+    journalRowsWritten!: number;
     executedBy!: string | undefined;
     created!: Date;
 
@@ -2889,6 +2984,7 @@ export class ImportBatchListItemDto implements IImportBatchListItemDto {
             this.totalRows = _data["totalRows"];
             this.processedRows = _data["processedRows"];
             this.skippedRows = _data["skippedRows"];
+            this.journalRowsWritten = _data["journalRowsWritten"];
             this.executedBy = _data["executedBy"];
             this.created = _data["created"] ? new Date(_data["created"].toString()) : undefined as any;
         }
@@ -2914,6 +3010,7 @@ export class ImportBatchListItemDto implements IImportBatchListItemDto {
         data["totalRows"] = this.totalRows;
         data["processedRows"] = this.processedRows;
         data["skippedRows"] = this.skippedRows;
+        data["journalRowsWritten"] = this.journalRowsWritten;
         data["executedBy"] = this.executedBy;
         data["created"] = this.created ? this.created.toISOString() : undefined as any;
         return data;
@@ -2928,6 +3025,7 @@ export interface IImportBatchListItemDto {
     totalRows: number;
     processedRows: number;
     skippedRows: number;
+    journalRowsWritten: number;
     executedBy: string | undefined;
     created: Date;
 
@@ -4046,6 +4144,130 @@ export interface IUpdateMappingCommand {
     name: string;
     description: string | undefined;
     columns: ColumnMappingDto[];
+
+    [key: string]: any;
+}
+
+export class ValidationStarted implements IValidationStarted {
+    validationId!: string;
+    totalRows!: number;
+
+    [key: string]: any;
+
+    constructor(data?: IValidationStarted) {
+        if (data) {
+            for (var property in data) {
+                if (data.hasOwnProperty(property))
+                    (this as any)[property] = (data as any)[property];
+            }
+        }
+    }
+
+    init(_data?: any) {
+        if (_data) {
+            for (var property in _data) {
+                if (_data.hasOwnProperty(property))
+                    this[property] = _data[property];
+            }
+            this.validationId = _data["validationId"];
+            this.totalRows = _data["totalRows"];
+        }
+    }
+
+    static fromJS(data: any): ValidationStarted {
+        data = typeof data === 'object' ? data : {};
+        let result = new ValidationStarted();
+        result.init(data);
+        return result;
+    }
+
+    toJSON(data?: any) {
+        data = typeof data === 'object' ? data : {};
+        for (var property in this) {
+            if (this.hasOwnProperty(property))
+                data[property] = this[property];
+        }
+        data["validationId"] = this.validationId;
+        data["totalRows"] = this.totalRows;
+        return data;
+    }
+}
+
+export interface IValidationStarted {
+    validationId: string;
+    totalRows: number;
+
+    [key: string]: any;
+}
+
+export class ValidationStatusDto implements IValidationStatusDto {
+    validationId!: string;
+    total!: number;
+    processed!: number;
+    percent!: number;
+    status!: string;
+    report!: ImportReportDto | undefined;
+    error!: string | undefined;
+
+    [key: string]: any;
+
+    constructor(data?: IValidationStatusDto) {
+        if (data) {
+            for (var property in data) {
+                if (data.hasOwnProperty(property))
+                    (this as any)[property] = (data as any)[property];
+            }
+        }
+    }
+
+    init(_data?: any) {
+        if (_data) {
+            for (var property in _data) {
+                if (_data.hasOwnProperty(property))
+                    this[property] = _data[property];
+            }
+            this.validationId = _data["validationId"];
+            this.total = _data["total"];
+            this.processed = _data["processed"];
+            this.percent = _data["percent"];
+            this.status = _data["status"];
+            this.report = _data["report"] ? ImportReportDto.fromJS(_data["report"]) : undefined as any;
+            this.error = _data["error"];
+        }
+    }
+
+    static fromJS(data: any): ValidationStatusDto {
+        data = typeof data === 'object' ? data : {};
+        let result = new ValidationStatusDto();
+        result.init(data);
+        return result;
+    }
+
+    toJSON(data?: any) {
+        data = typeof data === 'object' ? data : {};
+        for (var property in this) {
+            if (this.hasOwnProperty(property))
+                data[property] = this[property];
+        }
+        data["validationId"] = this.validationId;
+        data["total"] = this.total;
+        data["processed"] = this.processed;
+        data["percent"] = this.percent;
+        data["status"] = this.status;
+        data["report"] = this.report ? this.report.toJSON() : undefined as any;
+        data["error"] = this.error;
+        return data;
+    }
+}
+
+export interface IValidationStatusDto {
+    validationId: string;
+    total: number;
+    processed: number;
+    percent: number;
+    status: string;
+    report: ImportReportDto | undefined;
+    error: string | undefined;
 
     [key: string]: any;
 }

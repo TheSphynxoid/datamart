@@ -2,7 +2,7 @@ import { APP_ID, NgModule, inject, provideAppInitializer } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { LucideAngularModule, Sun, Moon, Laptop, Plus, Settings, MoreHorizontal, Menu, Home, Upload } from 'lucide-angular';
+import { LucideAngularModule, Sun, Moon, Laptop, Plus, Settings, MoreHorizontal, Menu, Home, Upload, CheckCircle, AlertTriangle, AlertCircle, Info, X, Eye, EyeOff, Search } from 'lucide-angular';
 import { HTTP_INTERCEPTORS, provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 import { AppComponent } from './app.component';
@@ -19,6 +19,7 @@ import { AuthService } from 'src/api-authorization/auth.service';
 
 import { FileUploadComponent } from './file-upload/file-upload.component';
 import { ExcelMapComponent } from './Excelmap/excelmap.component';
+import { ReportErrorsComponent } from './report-errors/report-errors.component';
 import { DxDataGridModule } from 'devextreme-angular/ui/data-grid';
 import { DxFormModule } from 'devextreme-angular/ui/form';
 import { DxButtonModule } from 'devextreme-angular/ui/button';
@@ -49,7 +50,8 @@ export function getApiBaseUrl(): string {
         LoginComponent,
         RegisterComponent,
         FileUploadComponent,
-        ExcelMapComponent
+        ExcelMapComponent,
+        ReportErrorsComponent
     ],
     bootstrap: [AppComponent],
     imports: [
@@ -70,7 +72,7 @@ export function getApiBaseUrl(): string {
         DxDropDownButtonModule,
         DxDateBoxModule,
         DxDropDownBoxModule,
-        LucideAngularModule.pick({ Sun, Moon, Laptop, Plus, Settings, MoreHorizontal, Menu, Home, Upload }),
+        LucideAngularModule.pick({ Sun, Moon, Laptop, Plus, Settings, MoreHorizontal, Menu, Home, Upload, CheckCircle, AlertTriangle, AlertCircle, Info, X, Eye, EyeOff, Search }),
         RouterModule.forRoot([
             { path: '', component: DashboardComponent, pathMatch: 'full', canActivate: [AuthGuard] },
             { path: 'login', component: LoginComponent },

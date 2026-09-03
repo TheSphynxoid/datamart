@@ -1,0 +1,6 @@
+AccountNumber,ClientName,Balance,OpenedDate
+A-001,Alice Johnson,1500.50,2024-01-15
+A-002,Bob Smith,2750.00,2024-02-20
+A-003,Carol Davis,   99.99,2024-03-05
+A-004,Dan Brown,10000.0,2024-04-12
+A-005,Eve Wilson,  500.00,2024-05-30

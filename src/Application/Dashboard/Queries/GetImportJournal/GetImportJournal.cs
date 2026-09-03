@@ -24,7 +24,8 @@ public record ImportJournalPage(int BatchId, int Page, int PageSize, int TotalCo
 public record GetImportJournalQuery(
     int BatchId,
     int Page = 1,
-    int PageSize = 50) : IRequest<ImportJournalPage>;
+    int PageSize = 50,
+    ImportRowStatus? Status = null) : IRequest<ImportJournalPage>;
 
 public class GetImportJournalQueryHandler : IRequestHandler<GetImportJournalQuery, ImportJournalPage>
 {
@@ -50,6 +51,9 @@ public class GetImportJournalQueryHandler : IRequestHandler<GetImportJournalQuer
 
         var q = _context.ImportRecords
             .Where(r => r.ImportBatchId == request.BatchId);
+
+        if (request.Status.HasValue)
+            q = q.Where(r => r.Status == request.Status.Value);
 
         var totalCount = await q.CountAsync(cancellationToken);
 

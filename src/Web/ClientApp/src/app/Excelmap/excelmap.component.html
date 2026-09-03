@@ -1,7 +1,24 @@
-<hgroup>
-  <h1>Excel Import</h1>
-  <p>Map a spreadsheet into the database, step by step.</p>
-</hgroup>
+<section class="wizard-hero">
+  <div class="wizard-hero-text">
+    <h1>Excel Import</h1>
+    <p>Map a spreadsheet into the database, step by step.</p>
+  </div>
+  <div class="wizard-hero-meta">
+    <span class="wizard-hero-step">Step {{ currentStepIndex() + 1 }} of {{ steps.length }}</span>
+    @if (selectedEntity(); as ent) {
+      <span class="hero-chip hero-chip-entity" title="Target table">
+        <span class="hero-chip-label">Table</span>
+        <span class="hero-chip-value">{{ ent.name }}</span>
+      </span>
+    }
+    @if (selectedFile(); as file) {
+      <span class="hero-chip hero-chip-file" title="Uploaded file">
+        <span class="hero-chip-label">File</span>
+        <span class="hero-chip-value">{{ file.name }}</span>
+      </span>
+    }
+  </div>
+</section>
 
 @if (entitySchemas(); as schemas) {
   <dx-stepper
@@ -76,11 +93,14 @@
             </div>
           </dx-data-grid>
         }
-        <dx-button
-          text="Confirm"
-          [disabled]="draftEntity() === null"
-          (onClick)="confirmEntity()">
-        </dx-button>
+        <div class="step-actions">
+          <dx-button
+            text="Confirm"
+            type="default"
+            [disabled]="draftEntity() === null"
+            (onClick)="confirmEntity()">
+          </dx-button>
+        </div>
       }
       @case ('upload') {
         <app-file-upload (SelectedFile)="onFileSelected($event)"></app-file-upload>
@@ -88,7 +108,7 @@
         @if (parsing()) {
           <dx-load-indicator [visible]="true" hint="Reading file&hellip;"></dx-load-indicator>
         } @else if (parseError()) {
-          <p class="error">{{ parseError() }}</p>
+          <p class="error"><lucide-icon name="alert-circle" [size]="16"></lucide-icon> {{ parseError() }}</p>
         } @else if (excelColumns().length > 0) {
           @if (sheetNames().length > 1) {
             <div class="sheet-select">
@@ -117,11 +137,25 @@
             [paging]="{ pageSize: 10, enabled: true }"
             [pager]="{ visible: true, showPageSizeSelector: true, allowedPageSizes: [10, 25, 50], showInfo: true }">
           </dx-data-grid>
-          <dx-button text="Confirm" (onClick)="confirmFile()"></dx-button>
+          <div class="step-actions">
+            <dx-button text="Confirm" type="default" (onClick)="confirmFile()"></dx-button>
+          </div>
         }
       }
       @case ('map') {
         @if (mapping(); as m) {
+          <div class="step-stat">
+            <span class="step-stat-item">
+              <span class="step-stat-num">{{ m.filter(x => x.dbField !== null).length }}</span>
+              of <span class="step-stat-num">{{ m.length }}</span> columns mapped
+            </span>
+            @if (m.filter(x => x.dbField !== null).length < m.length) {
+              <span class="step-stat-hint">
+                <lucide-icon name="info" [size]="14"></lucide-icon>
+                Unmapped columns are skipped at import time.
+              </span>
+            }
+          </div>
           @if (loadingMappings()) {
             <small>Loading saved mappings&hellip;</small>
           } @else if (savedMappings().length > 0) {
@@ -288,56 +322,61 @@
           }
           @if (unmappedRequired().length > 0) {
             <p class="warning">
+              <lucide-icon name="alert-triangle" [size]="16"></lucide-icon>
               Required fields without a source: {{ unmappedRequired().join(', ') }}
             </p>
           }
           @if (missingFormats().length > 0) {
             <p class="warning">
+              <lucide-icon name="alert-triangle" [size]="16"></lucide-icon>
               Format configuration required for: {{ missingFormats().join(', ') }}
             </p>
           }
-          <dx-button
-            text="Confirm mapping"
-            [disabled]="m.filter(x => x.dbField !== null).length === 0 || missingFormats().length > 0"
-            (onClick)="confirmMapping()">
-          </dx-button>
-          @if (m.filter(x => x.dbField !== null).length > 0) {
-            <div class="save-section">
-              @if (showSaveForm()) {
-                <div class="save-form">
-                  <dx-text-box
-                    [value]="mappingName()"
-                    placeholder="Mapping name"
-                    (onValueChanged)="mappingName.set($event.value)">
-                  </dx-text-box>
-                  <dx-text-box
-                    [value]="mappingDescription()"
-                    placeholder="Description (optional)"
-                    (onValueChanged)="mappingDescription.set($event.value)">
-                  </dx-text-box>
-                  @if (saveError()) {
-                    <p class="error">{{ saveError() }}</p>
-                  }
-                  <div class="save-actions">
-                    <dx-button
-                      text="Save"
-                      [disabled]="mappingName().trim() === '' || savingMapping()"
-                      (onClick)="saveCurrentMapping()">
-                    </dx-button>
-                    <dx-button
-                      text="Cancel"
-                      (onClick)="toggleSaveForm()">
-                    </dx-button>
-                  </div>
-                </div>
-              } @else {
+          @if (m.filter(x => x.dbField !== null).length > 0 && showSaveForm()) {
+            <div class="save-form">
+              <dx-text-box
+                [value]="mappingName()"
+                placeholder="Mapping name"
+                (onValueChanged)="mappingName.set($event.value)">
+              </dx-text-box>
+              <dx-text-box
+                [value]="mappingDescription()"
+                placeholder="Description (optional)"
+                (onValueChanged)="mappingDescription.set($event.value)">
+              </dx-text-box>
+              @if (saveError()) {
+                <p class="error"><lucide-icon name="alert-circle" [size]="16"></lucide-icon> {{ saveError() }}</p>
+              }
+              <div class="save-actions">
                 <dx-button
-                  text="Save as new mapping"
+                  text="Save"
+                  type="default"
+                  [disabled]="mappingName().trim() === '' || savingMapping()"
+                  (onClick)="saveCurrentMapping()">
+                </dx-button>
+                <dx-button
+                  text="Cancel"
+                  type="normal"
                   (onClick)="toggleSaveForm()">
                 </dx-button>
-              }
+              </div>
             </div>
           }
+          <div class="step-actions">
+            @if (m.filter(x => x.dbField !== null).length > 0 && !showSaveForm()) {
+              <dx-button
+                text="Save as new mapping"
+                type="normal"
+                (onClick)="toggleSaveForm()">
+              </dx-button>
+            }
+            <dx-button
+              text="Confirm mapping"
+              type="default"
+              [disabled]="m.filter(x => x.dbField !== null).length === 0 || missingFormats().length > 0"
+              (onClick)="confirmMapping()">
+            </dx-button>
+          </div>
         }
       }
       @case ('preview') {
@@ -357,42 +396,65 @@
             [pager]="{ visible: true, showPageSizeSelector: true, allowedPageSizes: [10, 25, 50], showInfo: true }">
           </dx-data-grid>
           <div class="validate-section">
-            <dx-button
-              text="Validate"
-              (onClick)="runValidation()"
-              [disabled]="validating() || savedMappingId() === null"
-              title="Run a full pre-flight validation against the saved mapping (no rows are written)">
-            </dx-button>
             @if (validating()) {
-              <dx-load-indicator [visible]="true" hint="Validating&hellip;"></dx-load-indicator>
-            } @else if (parseError()) {
-              <p class="error">{{ parseError() }}</p>
+              @if (validationProgress(); as p) {
+                <dx-progress-bar
+                  [value]="p.percent"
+                  [showStatus]="false"
+                  [width]="'100%'">
+                </dx-progress-bar>
+                <p><small>{{ p.processed }} of {{ p.total }} rows validated.</small></p>
+              } @else {
+                <dx-load-indicator [visible]="true" hint="Preparing validation&hellip;"></dx-load-indicator>
+              }
+            } @else if (validationError()) {
+              <p class="error"><lucide-icon name="alert-circle" [size]="16"></lucide-icon> {{ validationError() }}</p>
             } @else if (validateReport(); as report) {
               <div class="validate-report">
-                <p>
-                  <strong>Pre-flight validation</strong> &middot;
-                  {{ report.totalRows }} rows &middot;
-                  {{ report.importedRows }} would import &middot;
-                  {{ report.rejectedRows }} rejected
-                </p>
+                <div class="validate-report-header">
+                  <h4><lucide-icon name="check-circle" [size]="16"></lucide-icon> Pre-flight validation</h4>
+                  <div class="validate-report-stats">
+                    <span class="validate-stat validate-stat-total" title="Total rows">
+                      <span class="validate-stat-label">Total</span>
+                      <span class="validate-stat-value">{{ report.totalRows | number }}</span>
+                    </span>
+                    <span class="validate-stat validate-stat-ok" title="Rows that would import">
+                      <span class="validate-stat-label">OK</span>
+                      <span class="validate-stat-value">{{ report.importedRows | number }}</span>
+                    </span>
+                    <span class="validate-stat validate-stat-bad" [class.has-errors]="(report.rejectedRows ?? 0) > 0" title="Rejected rows">
+                      <span class="validate-stat-label">Rejected</span>
+                      <span class="validate-stat-value">{{ report.rejectedRows | number }}</span>
+                    </span>
+                  </div>
+                </div>
                 @if (report.errors && report.errors.length > 0) {
-                  <table class="report-errors">
-                    <thead><tr><th>Row</th><th>Reason</th></tr></thead>
-                    <tbody>
-                      @for (err of report.errors; track err.rowNumber) {
-                        <tr><td>{{ err.rowNumber }}</td><td>{{ err.reason }}</td></tr>
-                      }
-                    </tbody>
-                  </table>
+                  <app-report-errors [errors]="report.errors"></app-report-errors>
                 } @else {
-                  <p class="success">&#10003; No rejections — safe to import.</p>
+                  <p class="success"><lucide-icon name="check-circle" [size]="16"></lucide-icon> No rejections — safe to import.</p>
                 }
               </div>
             }
           </div>
-          <dx-button text="Confirm preview" (onClick)="confirmPreview()"></dx-button>
+          <div class="step-actions">
+            <dx-button
+              text="Validate"
+              type="normal"
+              (onClick)="runValidation()"
+              [disabled]="validating() || savedMappingId() === null"
+              title="Run a full pre-flight validation against the saved mapping (no rows are written)">
+            </dx-button>
+            <dx-button
+              text="Confirm preview"
+              type="default"
+              (onClick)="confirmPreview()">
+            </dx-button>
+          </div>
         } @else {
-          <p><em>No data to preview.</em></p>
+          <div class="empty-state">
+            <lucide-icon name="info" [size]="22"></lucide-icon>
+            <p>Upload a file in the previous step to see a preview here.</p>
+          </div>
         }
       }
       @case ('import') {
@@ -417,50 +479,68 @@
           }
         } @else if (importResult(); as result) {
           @if (result.success) {
-            <p class="success">&#10003; Import complete. Batch #{{ result.batchId }}</p>
+            <p class="success"><lucide-icon name="check-circle" [size]="16"></lucide-icon> Import complete. Batch #{{ result.batchId }}</p>
             @if (result.importedRows !== undefined) {
               <p><small>{{ result.importedRows }} rows imported.</small></p>
             }
             @if (result.skippedRows && result.skippedRows > 0) {
               <p class="warning">
-                &#9888; {{ result.skippedRows }} row(s) skipped.
+                <lucide-icon name="alert-triangle" [size]="16"></lucide-icon>
+                {{ result.skippedRows }} row(s) skipped.
                 @if (result.skippedRowsPreview) {
                   Rows: {{ result.skippedRowsPreview }}
                 }
               </p>
             }
             @if (importReport(); as report) {
-              <div class="report">
-                <h3>Import report</h3>
-                <p><small>
-                  {{ report.totalRows }} total &middot; {{ report.importedRows }} imported &middot; {{ report.rejectedRows }} rejected
-                </small></p>
+              <div class="validate-report">
+                <div class="validate-report-header">
+                  <h4><lucide-icon name="check-circle" [size]="16"></lucide-icon> Import report</h4>
+                  <div class="validate-report-stats">
+                    <span class="validate-stat validate-stat-total" title="Total rows">
+                      <span class="validate-stat-label">Total</span>
+                      <span class="validate-stat-value">{{ report.totalRows | number }}</span>
+                    </span>
+                    <span class="validate-stat validate-stat-ok" title="Imported">
+                      <span class="validate-stat-label">Imported</span>
+                      <span class="validate-stat-value">{{ report.importedRows | number }}</span>
+                    </span>
+                    <span class="validate-stat validate-stat-bad" [class.has-errors]="(report.rejectedRows ?? 0) > 0" title="Rejected">
+                      <span class="validate-stat-label">Rejected</span>
+                      <span class="validate-stat-value">{{ report.rejectedRows | number }}</span>
+                    </span>
+                  </div>
+                </div>
                 @if (report.errors && report.errors.length > 0) {
-                  <table class="report-errors">
-                    <thead><tr><th>Row</th><th>Reason</th></tr></thead>
-                    <tbody>
-                      @for (err of report.errors; track err.rowNumber) {
-                        <tr><td>{{ err.rowNumber }}</td><td>{{ err.reason }}</td></tr>
-                      }
-                    </tbody>
-                  </table>
+                  <app-report-errors [errors]="report.errors"></app-report-errors>
                 } @else {
-                  <p><small>No rejections.</small></p>
+                  <p class="success"><lucide-icon name="check-circle" [size]="16"></lucide-icon> No rejections.</p>
                 }
               </div>
             }
+            <div class="step-actions">
+              <dx-button
+                text="Start a new import"
+                type="default"
+                (onClick)="resetWizard()">
+              </dx-button>
+            </div>
           } @else {
-            <p class="error">{{ result.error }}</p>
-            <dx-button
-              text="Retry import"
-              [disabled]="savedMappingId() === null"
-              (onClick)="confirmImport()">
-            </dx-button>
+            <p class="error"><lucide-icon name="alert-circle" [size]="16"></lucide-icon> {{ result.error }}</p>
+            <div class="step-actions">
+              <dx-button
+                text="Retry import"
+                type="default"
+                [disabled]="savedMappingId() === null"
+                (onClick)="confirmImport()">
+              </dx-button>
+            </div>
           }
         } @else {
           @if (savedMappingId() === null) {
             <p class="warning">
-              &#9888; Save your mapping configuration (step 3) before importing.
+              <lucide-icon name="alert-triangle" [size]="16"></lucide-icon>
+              Save your mapping configuration (step 3) before importing.
             </p>
           } @else {
             <div class="empty-mode-selector">
@@ -476,20 +556,28 @@
           }
           @if (validateReport() && (validateReport()!.rejectedRows ?? 0) > 0) {
             <p class="warning">
-              &#9888; Pre-flight validation found {{ validateReport()!.rejectedRows }} rejection(s).
+              <lucide-icon name="alert-triangle" [size]="16"></lucide-icon>
+              Pre-flight validation found {{ validateReport()!.rejectedRows }} rejection(s).
               Fix the file/mapping and re-validate before importing.
             </p>
           }
-          <dx-button
-            text="Import"
-            [disabled]="savedMappingId() === null || ((validateReport()?.rejectedRows ?? 0) > 0)"
-            (onClick)="confirmImport()">
-          </dx-button>
+          <div class="step-actions">
+            <dx-button
+              text="Import"
+              type="default"
+              [disabled]="savedMappingId() === null || ((validateReport()?.rejectedRows ?? 0) > 0)"
+              (onClick)="confirmImport()">
+            </dx-button>
+          </div>
         }
       }
       @default {
         <p><em>{{ steps[i].label }} &mdash; not yet implemented.</em></p>
-        <dx-button text="Continue" (onClick)="confirmStub(i)"></dx-button>
+        <div class="step-actions">
+          <div class="step-actions">
+            <dx-button text="Continue" type="default" (onClick)="confirmStub(i)"></dx-button>
+          </div>
+        </div>
       }
             }
           </div>
@@ -500,5 +588,8 @@
     }
   </div>
 } @else {
-  <span aria-busy="true">Loading entities&hellip;</span>
+  <div class="empty-state" aria-busy="true">
+    <dx-load-indicator [visible]="true"></dx-load-indicator>
+    <p>Loading target tables&hellip;</p>
+  </div>
 }

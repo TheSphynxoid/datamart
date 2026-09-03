@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>DataMart.Tests.FixturesGenerator</RootNamespace>
+    <AssemblyName>DataMart.Tests.FixturesGenerator</AssemblyName>
+    <!-- Standalone helper for emitting .xlsx files. Disable analysis-as-errors so a stray
+         analyzer warning can't block fixture regeneration. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <IsPackable>false</IsPackable>
+    <!-- Not part of the solution: avoids disturbing sln / dotnet test discovery. -->
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" />
+  </ItemGroup>
+</Project>

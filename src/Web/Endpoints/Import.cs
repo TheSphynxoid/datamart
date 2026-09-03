@@ -2,6 +2,7 @@
 using DataMart.Application.ImportFile.Commands.RunValidation;
 using DataMart.Application.ImportFile.Queries.GetImportBatch;
 using DataMart.Application.ImportFile.Queries.GetImportReport;
+using DataMart.Application.ImportFile.Queries.GetValidationStatus;
 using DataMart.Application.Common.Interfaces;
 using DataMart.Web.Common;
 using DataMart.Domain.Enums;
@@ -18,6 +19,7 @@ public class Import : IEndpointGroup
         groupBuilder.RequireAuthorization();
         groupBuilder.MapPost(UploadFile);
         groupBuilder.MapPost("validate", ValidateFile);
+        groupBuilder.MapGet("validations/{id:guid}", GetValidationStatus);
         groupBuilder.MapGet("batches/{id}", GetBatch);
         groupBuilder.MapGet("batches/{id}/preview", GetBatchPreview);
         groupBuilder.MapGet("batches/{id}/report", GetImportReport);
@@ -77,7 +79,7 @@ public class Import : IEndpointGroup
         }
     }
 
-    public static async Task<Results<Ok<ImportReportDto>, BadRequest<string>>> ValidateFile(
+    public static async Task<Results<Ok<ValidationStarted>, BadRequest<string>>> ValidateFile(
         ISender sender,
         IAccessLogService accessLog,
         IUser user,
@@ -99,17 +101,22 @@ public class Import : IEndpointGroup
 
         try
         {
-            var report = await sender.Send(new RunValidationCommand(stream, file.FileName, mappingId, emptyMode, sheetIndex));
+            // Async: returns immediately with the validation id; the heavy
+            // work runs on ValidationProcessingService and the caller polls
+            // GET /api/Import/validations/{id} for progress + final report.
+            var started = await sender.Send(new StartValidationCommand(stream, file.FileName, mappingId, emptyMode, sheetIndex));
 
             // FC-4: validation reads file contents, so it is logged like a preview.
+            // Logged at start (when the file is read) — final-report access is
+            // logged by the report endpoint.
             await accessLog.LogAsync(
                 user.Id ?? "unknown",
                 AccessAction.PreviewData,
                 mappingId: mappingId,
-                batchId: report.BatchId,
+                batchId: null,
                 correlationId: correlationId);
 
-            return TypedResults.Ok(report);
+            return TypedResults.Ok(started);
         }
         catch (ValidationException ex)
         {
@@ -119,6 +126,25 @@ public class Import : IEndpointGroup
         catch (Exception ex)
         {
             return TypedResults.BadRequest(ex.Message);
+        }
+    }
+
+    public static async Task<Results<Ok<ValidationStatusDto>, BadRequest<string>>> GetValidationStatus(
+        ISender sender,
+        Guid id)
+    {
+        try
+        {
+            var status = await sender.Send(new GetValidationStatusQuery(id));
+            return TypedResults.Ok(status);
+        }
+        catch (FluentValidation.ValidationException ex)
+        {
+            return TypedResults.BadRequest(string.Join("; ", ex.Errors.Select(e => e.ErrorMessage)));
+        }
+        catch (Ardalis.GuardClauses.NotFoundException)
+        {
+            return TypedResults.BadRequest($"Validation {id} not found.");
         }
     }
 

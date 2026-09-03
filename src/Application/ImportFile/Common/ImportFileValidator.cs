@@ -55,7 +55,9 @@ public class ImportFileValidator
         int mappingId,
         int? sheetIndex,
         EmptyFieldMode emptyMode,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IProgress<int>? progress = null,
+        int totalRows = 0)
     {
         var mapping = await _context.Mappings.FindAsync([mappingId], cancellationToken);
         if (mapping is null)
@@ -90,6 +92,15 @@ public class ImportFileValidator
         int importedCount = 0;
         int rejectedCount = 0;
         int rowNumber = 1;
+
+        // Throttled progress: report every ~1% of totalRows (or every 1000 rows
+        // for very small files) so the poller sees regular updates without us
+        // paying the cost of a callback per row. The store holds Total; we just
+        // report the running count.
+        var reportEvery = totalRows > 0
+            ? Math.Max(1, totalRows / 100)
+            : 1000;
+        var nextReportAt = reportEvery;
 
         using var readStream = new FileStream(
             tempPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
@@ -192,7 +203,15 @@ public class ImportFileValidator
 
             if (skipRow) rejectedCount++; else importedCount++;
             rowNumber++;
+
+            if (progress is not null && rowNumber >= nextReportAt)
+            {
+                progress.Report(rowNumber);
+                nextReportAt = rowNumber + reportEvery;
+            }
         }
+
+        progress?.Report(rowNumber - 1);
 
         _logger.LogInformation(
             "Validation completed for mapping {MappingId}: {Imported} imported, {Rejected} rejected.",

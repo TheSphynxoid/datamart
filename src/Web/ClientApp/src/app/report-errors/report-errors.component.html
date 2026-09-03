@@ -1,0 +1,41 @@
+@if (errors && errors.length > 0) {
+  <div class="report-errors-summary">
+    <span class="report-errors-count">
+      <lucide-icon name="alert-triangle" [size]="14"></lucide-icon>
+      Showing first <strong>{{ visible().length }}</strong> of <strong>{{ errors.length }}</strong> rejection{{ errors.length === 1 ? '' : 's' }}.
+    </span>
+    <div class="report-errors-actions">
+      @if (hasMore() && !expanded()) {
+        <dx-button
+          text="Show all"
+          type="normal"
+          icon="search"
+          (onClick)="showAll()">
+        </dx-button>
+      }
+      <dx-button
+        text="Download CSV"
+        type="normal"
+        icon="download"
+        (onClick)="downloadCsv()">
+      </dx-button>
+    </div>
+  </div>
+  <div class="report-errors-scroll" [class.expanded]="expanded()">
+    <table class="report-errors">
+      <thead>
+        <tr><th>Row</th><th>Reason</th></tr>
+      </thead>
+      <tbody>
+        @for (err of visible(); track $index) {
+          <tr><td class="row-num">{{ err.rowNumber }}</td><td>{{ err.reason }}</td></tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  @if (hasMore() && !expanded()) {
+    <p class="report-errors-hint">
+      {{ hiddenCount() | number }} more not shown. Use <em>Download CSV</em> for the full list, or <em>Show all</em> to render them here (may be slow for very large files).
+    </p>
+  }
+}

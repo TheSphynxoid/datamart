@@ -18,6 +18,8 @@ public record ImportBatchListItemDto(
     int TotalRows,
     int ProcessedRows,
     int SkippedRows,
+    int JournalRowsWritten,
+    bool JournalIncomplete,
     string? ExecutedBy,
     DateTimeOffset Created);
 
@@ -29,7 +31,8 @@ public record GetImportBatchesQuery(
     ImportStatus? Status = null,
     string? AffectedTable = null,
     DateTimeOffset? From = null,
-    DateTimeOffset? To = null) : IRequest<ImportBatchesPage>;
+    DateTimeOffset? To = null,
+    string? Search = null) : IRequest<ImportBatchesPage>;
 
 public class GetImportBatchesQueryHandler : IRequestHandler<GetImportBatchesQuery, ImportBatchesPage>
 {
@@ -61,6 +64,17 @@ public class GetImportBatchesQueryHandler : IRequestHandler<GetImportBatchesQuer
         if (request.To.HasValue)
             q = q.Where(b => b.Created <= request.To.Value);
 
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            // Free-text search across file name and the user who executed the
+            // import. Case-insensitive via LOWER() on both sides — provider-neutral,
+            // works on any EF Core provider (Postgres, SqlServer, etc.).
+            var needle = request.Search.Trim().ToLower();
+            q = q.Where(b =>
+                b.FileName.ToLower().Contains(needle) ||
+                (b.ExecutedBy != null && b.ExecutedBy.ToLower().Contains(needle)));
+        }
+
         var totalCount = await q.CountAsync(cancellationToken);
 
         var items = await q
@@ -75,6 +89,8 @@ public class GetImportBatchesQueryHandler : IRequestHandler<GetImportBatchesQuer
                 b.TotalRows,
                 b.ProcessedRows,
                 b.SkippedRows,
+                b.JournalRowsWritten,
+                b.JournalIncomplete,
                 b.ExecutedBy,
                 b.Created))
             .ToListAsync(cancellationToken);

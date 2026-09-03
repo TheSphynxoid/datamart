@@ -36,7 +36,104 @@
 
   <!-- Batch list -->
   <section class="panel">
-    <h2>Recent imports</h2>
+    <header class="panel-header">
+      <h2>Recent imports</h2>
+      <div class="panel-header-actions">
+        <span class="page-size-label">Show</span>
+        <dx-select-box
+          [items]="pageSizeOptions"
+          [value]="batchesPageSize()"
+          (onValueChanged)="onPageSizeChange($event.value)">
+        </dx-select-box>
+        <span class="page-size-label">per page</span>
+      </div>
+    </header>
+
+    <!-- Filter toolbar -->
+    <div class="filter-toolbar">
+      <div class="filter-toolbar-row">
+        <label class="filter-field filter-field-search">
+          <span>Search</span>
+          <dx-text-box
+            placeholder="File name or user&hellip;"
+            [value]="batchesSearchInput()"
+            [showClearButton]="true"
+            (onValueChanged)="onSearchInput($event.value)"
+            icon="search">
+          </dx-text-box>
+        </label>
+        <label class="filter-field">
+          <span>Status</span>
+          <dx-select-box
+            [items]="statusFilterOptions"
+            [value]="batchesStatus()"
+            valueExpr="value"
+            displayExpr="label"
+            (onValueChanged)="onStatusFilterChange($event.value)">
+          </dx-select-box>
+        </label>
+        <label class="filter-field">
+          <span>Table</span>
+          <dx-select-box
+            [items]="tableOptions()"
+            [value]="batchesTable()"
+            valueExpr="value"
+            displayExpr="label"
+            [searchEnabled]="true"
+            (onValueChanged)="onTableFilterChange($event.value)">
+          </dx-select-box>
+        </label>
+        <label class="filter-field">
+          <span>From</span>
+          <dx-date-box
+            [value]="batchesFrom()"
+            type="date"
+            [showClearButton]="true"
+            (onValueChanged)="onFromChange($event.value)">
+          </dx-date-box>
+        </label>
+        <label class="filter-field">
+          <span>To</span>
+          <dx-date-box
+            [value]="batchesTo()"
+            type="date"
+            [showClearButton]="true"
+            (onValueChanged)="onToChange($event.value)">
+          </dx-date-box>
+        </label>
+      </div>
+
+      <div class="filter-toolbar-row filter-presets">
+        <span class="preset-label">Quick range:</span>
+        @for (preset of datePresets; track preset.label) {
+          <dx-button
+            [text]="preset.label"
+            type="normal"
+            (onClick)="applyDatePreset(preset)">
+          </dx-button>
+        }
+        @if (hasActiveFilters()) {
+          <button class="clear-filters-btn" (click)="clearAllFilters()" type="button">
+            <lucide-icon name="x" [size]="14"></lucide-icon>
+            Clear all
+          </button>
+        }
+      </div>
+
+      @if (activeFilters().length > 0) {
+        <div class="filter-chips">
+          @for (chip of activeFilters(); track chip.key) {
+            <span class="filter-chip">
+              {{ chip.label }}
+              <button class="filter-chip-close" (click)="chip.clear()" type="button" aria-label="Remove filter">
+                <lucide-icon name="x" [size]="12"></lucide-icon>
+              </button>
+            </span>
+          }
+        </div>
+      }
+    </div>
+
     @if (batchesLoading()) {
       <dx-load-indicator [visible]="true" hint="Loading batches&hellip;"></dx-load-indicator>
     }
@@ -46,9 +143,10 @@
       [columnAutoWidth]="true"
       [rowAlternationEnabled]="true"
       [hoverStateEnabled]="true"
+      [sorting]="{ mode: 'single' }"
       (onRowClick)="onBatchRowClick($event)"
       [masterDetail]="{ enabled: false }">
-      <dxi-column dataField="created" dataType="datetime" caption="Created" [width]="170"></dxi-column>
+      <dxi-column dataField="created" dataType="datetime" caption="Created" [width]="170" [sortOrder]="'desc'"></dxi-column>
       <dxi-column dataField="fileName" caption="File"></dxi-column>
       <dxi-column dataField="affectedTable" caption="Target table" [width]="180"></dxi-column>
       <dxi-column dataField="status" caption="Status" [width]="120" cellTemplate="statusCell"></dxi-column>
@@ -60,10 +158,18 @@
         @if (statusBadge(cell.data.status); as b) {
           <span class="badge {{ b.cls }}">{{ b.label }}</span>
         }
+        @if (journalIndicator(cell.data); as dot) {
+          <span class="{{ dot.cls }}" [title]="dot.title" aria-label="Journal status indicator"></span>
+        }
       </div>
     </dx-data-grid>
     <p class="total-count">
-      @if (batchesTotalCount() > 0) { Showing {{ batches().length }} of {{ batchesTotalCount() }} batch(es). }
+      @if (batchesTotalCount() > 0) {
+        Showing {{ batches().length }} of {{ batchesTotalCount() }} batch(es).
+        @if (hasActiveFilters()) { <span class="filtered-hint">Filtered.</span> }
+      } @else {
+        No batches match the current filters.
+      }
     </p>
   </section>
 
@@ -80,10 +186,49 @@
               @if (statusBadge(b.status); as bb) { <span class="badge {{ bb.cls }}">{{ bb.label }}</span> }
               &middot; total {{ b.totalRows }} &middot; imported {{ b.processedRows }} &middot; rejected {{ b.skippedRows }}
             </p>
+            @if (journalProgressText(b); as journalText) {
+              <p class="detail-journal-progress" [class.detail-journal-incomplete]="b.journalIncomplete">
+                {{ journalText }}
+              </p>
+            }
           }
         </div>
         <dx-button text="Close" (onClick)="closeDetail()"></dx-button>
       </header>
+
+      <!-- Journal filter toolbar -->
+      <div class="filter-toolbar">
+        <div class="filter-toolbar-row">
+          <label class="filter-field">
+            <span>Status</span>
+            <dx-select-box
+              [items]="journalStatusOptions"
+              [value]="journalStatus()"
+              valueExpr="value"
+              displayExpr="label"
+              (onValueChanged)="onJournalStatusChange($event.value)">
+            </dx-select-box>
+          </label>
+          <label class="filter-field filter-field-search">
+            <span>Filter by reason</span>
+            <dx-text-box
+              placeholder="e.g. required field&hellip;"
+              [value]="journalErrorSearch()"
+              [showClearButton]="true"
+              (onValueChanged)="onJournalErrorSearchChange($event.value)"
+              icon="search">
+            </dx-text-box>
+          </label>
+          <button
+            class="payload-toggle"
+            [class.active]="journalShowPayload()"
+            (click)="toggleJournalPayload()"
+            type="button">
+            <lucide-icon [name]="journalShowPayload() ? 'eye-off' : 'eye'" [size]="14"></lucide-icon>
+            {{ journalShowPayload() ? 'Hide payloads' : 'Show payloads' }}
+          </button>
+        </div>
+      </div>
 
       @if (journalLoading()) {
         <dx-load-indicator [visible]="true" hint="Loading journal&hellip;"></dx-load-indicator>
@@ -99,7 +244,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (entry of journal(); track entry.id) {
+            @for (entry of journalFiltered(); track entry.id) {
               <tr>
                 <td class="row-num">{{ entry.sourceKey }}</td>
                 <td>
@@ -111,7 +256,7 @@
                   @if (entry.errorMessage) {
                     <div class="error-msg">{{ entry.errorMessage }}</div>
                   }
-                  @if (entry.payload) {
+                  @if (entry.payload && journalShowPayload()) {
                     <pre class="payload">{{ formatPayload(entry.payload) }}</pre>
                   }
                 </td>
@@ -120,7 +265,9 @@
           </tbody>
         </table>
         <p class="total-count">
-          Showing {{ journal().length }} of {{ journalTotalCount() }} journal row(s).
+          Showing {{ journalFiltered().length }} of {{ journal().length }} loaded row(s)
+          ({{ journalTotalCount() }} total in this batch).
+          @if (journalErrorSearch()) { <span class="filtered-hint">Filtered by reason on this page.</span> }
         </p>
       }
     </section>
