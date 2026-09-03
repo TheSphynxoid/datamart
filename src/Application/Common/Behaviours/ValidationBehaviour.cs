@@ -1,4 +1,5 @@
-﻿using ValidationException = DataMart.Application.Common.Exceptions.ValidationException;
+﻿using FluentValidation;
+using DataMart.Application.Common.Exceptions;
 
 namespace DataMart.Application.Common.Behaviours;
 
@@ -26,7 +27,7 @@ public class ValidationBehaviour<TRequest, TResponse> : IPipelineBehavior<TReque
                 .ToList();
 
             if (failures.Count != 0)
-                throw new ValidationException(failures);
+                throw new AppValidationException(failures);
         }
 
         return await next();

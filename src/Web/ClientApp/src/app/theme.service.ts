@@ -5,7 +5,7 @@ export type Theme = 'auto' | 'light' | 'dark';
 
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
-  private readonly STORAGE_KEY = 'picoColorScheme';
+  private readonly STORAGE_KEY = 'datamart-theme';
 
   private readonly prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)') ?? null;
 

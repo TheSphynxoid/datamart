@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Clean Architecture</title>
+    <title>DataMart</title>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="favicon.png" />
@@ -13,13 +13,11 @@
     <link rel="dx-theme" data-theme="fluent.blue.dark" href="assets/devextreme/dx.fluent.blue.dark.css">
     <script>
       (function () {
-        var stored = localStorage.getItem('picoColorScheme');
-        var resolved = stored && stored !== 'auto'
+        var key = 'datamart-theme';
+        var stored = localStorage.getItem(key);
+        var resolved = (stored && stored !== 'auto')
           ? stored
           : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-        if (stored && stored !== 'auto') {
-          document.documentElement.setAttribute('data-theme', resolved);
-        }
         var links = document.querySelectorAll('link[rel="dx-theme"]');
         for (var i = 0; i < links.length; i++) {
           if (links[i].getAttribute('data-theme') === 'fluent.blue.' + resolved) {

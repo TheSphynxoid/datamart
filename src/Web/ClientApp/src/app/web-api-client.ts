@@ -14,6 +14,82 @@ import { HttpClient, HttpHeaders, HttpResponse, HttpResponseBase } from '@angula
 
 export const API_BASE_URL = new InjectionToken<string>('API_BASE_URL');
 
+export interface IAntiforgeryClient {
+    /**
+     * @return OK
+     */
+    antiforgery(): Observable<AntiforgeryTokenDto>;
+}
+
+@Injectable({
+    providedIn: 'root'
+})
+export class AntiforgeryClient implements IAntiforgeryClient {
+    private http: HttpClient;
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(@Inject(HttpClient) http: HttpClient, @Optional() @Inject(API_BASE_URL) baseUrl?: string) {
+        this.http = http;
+        this.baseUrl = baseUrl ?? "";
+    }
+
+    /**
+     * @return OK
+     */
+    antiforgery(): Observable<AntiforgeryTokenDto> {
+        let url_ = this.baseUrl + "/api/antiforgery";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processAntiforgery(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processAntiforgery(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<AntiforgeryTokenDto>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<AntiforgeryTokenDto>;
+        }));
+    }
+
+    protected processAntiforgery(response: HttpResponseBase): Observable<AntiforgeryTokenDto> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            let resultData200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver);
+            result200 = AntiforgeryTokenDto.fromJS(resultData200);
+            return _observableOf(result200);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Bad Request", status, _responseText, _headers);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+}
+
 export interface IDashboardClient {
     /**
      * @return OK
@@ -2121,6 +2197,54 @@ export interface IAccessTokenResponse {
     accessToken: string;
     expiresIn: number;
     refreshToken: string;
+
+    [key: string]: any;
+}
+
+export class AntiforgeryTokenDto implements IAntiforgeryTokenDto {
+    requestToken!: string;
+
+    [key: string]: any;
+
+    constructor(data?: IAntiforgeryTokenDto) {
+        if (data) {
+            for (var property in data) {
+                if (data.hasOwnProperty(property))
+                    (this as any)[property] = (data as any)[property];
+            }
+        }
+    }
+
+    init(_data?: any) {
+        if (_data) {
+            for (var property in _data) {
+                if (_data.hasOwnProperty(property))
+                    this[property] = _data[property];
+            }
+            this.requestToken = _data["requestToken"];
+        }
+    }
+
+    static fromJS(data: any): AntiforgeryTokenDto {
+        data = typeof data === 'object' ? data : {};
+        let result = new AntiforgeryTokenDto();
+        result.init(data);
+        return result;
+    }
+
+    toJSON(data?: any) {
+        data = typeof data === 'object' ? data : {};
+        for (var property in this) {
+            if (this.hasOwnProperty(property))
+                data[property] = this[property];
+        }
+        data["requestToken"] = this.requestToken;
+        return data;
+    }
+}
+
+export interface IAntiforgeryTokenDto {
+    requestToken: string;
 
     [key: string]: any;
 }

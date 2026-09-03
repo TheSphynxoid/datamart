@@ -13,7 +13,9 @@ public class MappingConfiguration : IEntityTypeConfiguration<Mapping>
             col.Property(p => p.ColumnName).HasMaxLength(200);
             col.Property(p => p.ColumnType).HasMaxLength(50);
             col.Property(p => p.TargetColName).HasMaxLength(200);
+            col.Property(p => p.IsRequired);
             col.Property(p => p.DateFormat).HasMaxLength(20);
+            col.Property(p => p.TimeFormat).HasMaxLength(20);
             col.Property(p => p.DecimalSeparator).HasMaxLength(1);
             col.Property(p => p.BoolTrueValue).HasMaxLength(50);
             col.Property(p => p.BoolFalseValue).HasMaxLength(50);

@@ -12,4 +12,8 @@ public abstract class BaseAuditableEntity : BaseEntity, IImportable
     public DateTimeOffset LastModified { get; set; }
     [Exclude]
     public string? LastModifiedBy { get; set; }
+    [Exclude]
+    public int? ImportBatchId { get; set; }
+    [Exclude]
+    public string? SourceKey { get; set; }
 }

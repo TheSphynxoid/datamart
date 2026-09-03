@@ -11,9 +11,11 @@ public record class CreateMappingCommand(string Name, string? Description, strin
 public class CreateMappingCommandHandler : IRequestHandler<CreateMappingCommand, int>
 {
     private readonly IApplicationDbContext _context;
-    public CreateMappingCommandHandler(IApplicationDbContext context)
+    private readonly IUser _user;
+    public CreateMappingCommandHandler(IApplicationDbContext context, IUser user)
     {
         _context = context;
+        _user = user;
     }
     public async Task<int> Handle(CreateMappingCommand request, CancellationToken cancellationToken)
     {
@@ -27,12 +29,15 @@ public class CreateMappingCommandHandler : IRequestHandler<CreateMappingCommand,
                 ColumnName = c.ColumnName,
                 ColumnType = c.ColumnType,
                 TargetColName = c.TargetColName,
+                IsRequired = c.IsRequired,
                 DateFormat = c.DateFormat,
+                TimeFormat = c.TimeFormat,
                 DecimalSeparator = c.DecimalSeparator,
                 StripSymbols = c.StripSymbols,
                 BoolTrueValue = c.BoolTrueValue,
                 BoolFalseValue = c.BoolFalseValue,
-            })
+            }),
+            CreatedBy = _user.Id ?? "unknown"
         };
 
         _context.Mappings.Add(map);

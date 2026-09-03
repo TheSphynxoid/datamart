@@ -1,14 +1,51 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using DataMart.Domain.Enums;
 
 namespace DataMart.Domain.Entities;
 
+/// <summary>
+/// Row-level import journal (FC-4): one record per processed row carrying a JSON
+/// snapshot of its mapped values and the outcome. This is the queryable audit trail
+/// that the import report (and a future dashboard) read. It is NOT a business target
+/// entity, so it is excluded from the importable-entity list.
+/// </summary>
+[Exclude("Internal row-level import journal / audit (FC-4)")]
 public class ImportRecord : BaseAuditableEntity
 {
-    public string? Reference { get; set; }
-    public string? Description { get; set; }
-    public decimal Amount { get; set; }
-    public ImportStatus Status { get; set; }
-    public DateTimeOffset RecordDate { get; set; }
+    private string? _sourceKey;
+    private int? _importBatchId;
+
+    /// <summary>JSON snapshot of the row's mapped values: { targetColumn: value }.</summary>
+    public string? Payload { get; set; }
+
+    /// <summary>Why the row was rejected; null when <see cref="Status"/> is Imported.</summary>
+    public string? ErrorMessage { get; set; }
+
+    public ImportRowStatus Status { get; set; }
+
+    public ImportBatch? Batch { get; set; }
+
+    public new string? SourceKey
+    {
+        get => _sourceKey;
+        set
+        {
+            if (_sourceKey != null)
+                throw new InvalidOperationException("SourceKey is immutable after insert.");
+            _sourceKey = value;
+        }
+    }
+
+    public new int? ImportBatchId
+    {
+        get => _importBatchId;
+        set
+        {
+            if (_importBatchId != null)
+                throw new InvalidOperationException("ImportBatchId is immutable after insert.");
+            _importBatchId = value;
+        }
+    }
 }

@@ -1,11 +1,22 @@
 ﻿using System.Reflection;
+using System.Text;
+
 using DataMart.Application.Common.Behaviours;
+using DataMart.Application.ImportFile.Commands.ImportFile;
+using DataMart.Application.ImportFile.Common;
+using FluentValidation;
 using Microsoft.Extensions.Hosting;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
 public static class DependencyInjection
 {
+    static DependencyInjection()
+    {
+        // Register encoding provider for ExcelDataReader
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+    }
+
     public static void AddApplicationServices(this IHostApplicationBuilder builder)
     {
         builder.Services.AddAutoMapper(cfg => 
@@ -21,5 +32,8 @@ public static class DependencyInjection
             cfg.AddOpenBehavior(typeof(ValidationBehaviour<,>));
             cfg.AddOpenBehavior(typeof(PerformanceBehaviour<,>));
         });
+
+        builder.Services.AddScoped<ImportFileExecutor>();
+        builder.Services.AddScoped<ImportFileValidator>();
     }
 }

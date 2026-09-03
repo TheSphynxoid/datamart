@@ -6,5 +6,5 @@ namespace DataMart.Domain.Enums;
 
 public enum ImportStatus
 {
-    Processing, Success, Failed
+    Processing, Success, Failed, Reverted
 }

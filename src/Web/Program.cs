@@ -27,8 +27,11 @@ builder.Services.AddAntiforgery(o =>
 {
     // CSRF hardening: bind the antiforgery cookie to the conventional Angular
     // name and enforce SameSite=Strict (the browser will not send the cookie on
-    // any cross-site request). The Angular XsrfInterceptor reads this cookie and
-    // copies it into the RequestVerificationToken request header.
+    // any cross-site request). The SPA does not read this cookie (it's HttpOnly
+    // by default — JS can't, and shouldn't need to, read the secret); instead the
+    // /api/antiforgery prime endpoint returns the matching request token in the
+    // response body, and the SPA's XsrfInterceptor caches it and echoes it back
+    // in the RequestVerificationToken header on state-changing requests.
     o.Cookie.Name = "XSRF-TOKEN";
     o.Cookie.SameSite = SameSiteMode.Strict;
     o.HeaderName = "RequestVerificationToken";
@@ -48,7 +51,7 @@ else
 }
 
 app.UseHttpsRedirection();
-app.UseCors(static builder => 
+app.UseCors(static builder =>
     builder.AllowAnyMethod()
         .AllowAnyHeader()
         .AllowAnyOrigin());

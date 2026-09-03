@@ -5,8 +5,7 @@ using DataMart.Application.Mappings.Commands.DeleteMapping;
 using DataMart.Application.Mappings.Commands.UpdateMapping;
 using DataMart.Application.Mappings.Queries.GetMapping;
 using DataMart.Application.Mappings.Queries.GetMappings;
-using DataMart.Application.TodoItems.Commands.DeleteTodoItem;
-using DataMart.Application.TodoLists.Queries.GetTodos;
+using DataMart.Application.Common.Interfaces;
 using DataMart.Domain.Entities;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -21,13 +20,13 @@ public class MappingEndpoints : IEndpointGroup
     {
         groupBuilder.RequireAuthorization();
         
-
         groupBuilder.MapGet(GetMappings);
         groupBuilder.MapGet(GetMapping, "{id}");
         groupBuilder.MapPost(CreateMapping);
         groupBuilder.MapPut(UpdateMapping, "{id}");
         groupBuilder.MapDelete(DeleteMapping, "{id}");
     }
+
 
     public static async Task<Ok<List<MappingDto>>> GetMappings(ISender sender, string? targetEntity, string? search)
     {
@@ -44,19 +43,42 @@ public class MappingEndpoints : IEndpointGroup
             : TypedResults.NotFound();
     }
 
-    public static async Task<Created<int>> CreateMapping(ISender sender, CreateMappingCommand command)
+    public static async Task<Created<int>> CreateMapping(
+        ISender sender, 
+        IAccessLogService accessLog,
+        IUser user,
+        CreateMappingCommand command)
     {
         var id = await sender.Send(command);
+
+        // Log access (FC-4)
+        await accessLog.LogAsync(
+            user.Id ?? "unknown",
+            AccessAction.CreateMapping,
+            mappingId: id,
+            correlationId: Guid.NewGuid().ToString());
 
         return TypedResults.Created($"/mappings/{id}/", id);
     }
 
-    public static async Task<Results<NoContent, BadRequest>> UpdateMapping(ISender sender, int id, UpdateMappingCommand command)
+    public static async Task<Results<NoContent, BadRequest>> UpdateMapping(
+        ISender sender,
+        IAccessLogService accessLog,
+        IUser user,
+        int id, 
+        UpdateMappingCommand command)
     {
         if (id != command.Id)
             return TypedResults.BadRequest();
 
         await sender.Send(command);
+
+        // Log access (FC-4)
+        await accessLog.LogAsync(
+            user.Id ?? "unknown",
+            AccessAction.UpdateMapping,
+            mappingId: id,
+            correlationId: Guid.NewGuid().ToString());
 
         return TypedResults.NoContent();
     }

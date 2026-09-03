@@ -6,7 +6,9 @@ builder.AddAzureContainerAppEnvironment("aca-env");
 
 var databaseServer = builder
     .AddAzurePostgresFlexibleServer(Services.DatabaseServer)
-    .WithPasswordAuthentication()
+    .WithPasswordAuthentication(
+        builder.AddParameter("pg-user", "postgres"),
+        builder.AddParameter("pg-password", "DataMartDev!", secret: true))
     .RunAsContainer(container => 
         container.WithLifetime(ContainerLifetime.Persistent))
     .AddDatabase(Services.Database);

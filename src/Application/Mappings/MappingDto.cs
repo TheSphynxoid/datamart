@@ -16,5 +16,5 @@ public record class MappingDto(int Id, string Name, string? Description, string 
     }
 }
 
-public record class ColumnMappingDto(string ColumnName, string? ColumnType, string TargetColName, string? DateFormat, string? DecimalSeparator, bool StripSymbols, string? BoolTrueValue,
-    string? BoolFalseValue);
+public record class ColumnMappingDto(string ColumnName, string? ColumnType, string TargetColName, string? DateFormat, string? TimeFormat, string? DecimalSeparator, bool StripSymbols, string? BoolTrueValue,
+    string? BoolFalseValue, bool IsRequired = false);

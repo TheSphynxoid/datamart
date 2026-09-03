@@ -20,7 +20,7 @@ export class FileUploadComponent {
 
         // Validate file type and size
         if (!this.isValidFileType(file)) {
-            this.errorMessage = 'Invalid file type. Please upload an excel file or csv.';
+            this.errorMessage = 'Invalid file type. Please upload an .xlsx workbook.';
             return;
         }
 

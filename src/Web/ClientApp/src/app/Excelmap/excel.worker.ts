@@ -1,32 +1,56 @@
 import * as XLSX from 'xlsx';
 
 export interface ExcelPreviewResult {
+  sheetNames: string[];
+  sheetIndex: number;
   headers: string[];
   rows: Record<string, unknown>[];
 }
 
+type WorkerInput = { bytes: ArrayBuffer; sheetIndex?: number };
+
 type WorkerScope = {
-  onmessage: ((ev: MessageEvent<ArrayBuffer>) => void) | null;
+  onmessage: ((ev: MessageEvent<WorkerInput>) => void) | null;
   postMessage(message: unknown, transfer?: Transferable[]): void;
 };
 
 const ctx = self as unknown as WorkerScope;
 
-ctx.onmessage = (e: MessageEvent<ArrayBuffer>) => {
+ctx.onmessage = (e: MessageEvent<WorkerInput>) => {
   try {
-    const workbook = XLSX.read(new Uint8Array(e.data), { type: 'array', sheetRows: 50 });
-    const firstSheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[firstSheetName];
+    const input = e.data;
+    const buffer = input.bytes;
+    const byteLength = buffer instanceof ArrayBuffer ? buffer.byteLength : (buffer as Uint8Array).byteLength;
+
+    console.debug('[excel.worker] received bytes:', byteLength, 'isArrayBuffer:', buffer instanceof ArrayBuffer);
+
+    if (!buffer || byteLength === 0) {
+      ctx.postMessage({ error: 'The file appears to be empty.' });
+      return;
+    }
+
+    const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array', sheetRows: 50 });
+    const sheetNames = workbook.SheetNames;
+
+    if (!sheetNames || sheetNames.length === 0) {
+      ctx.postMessage({ error: 'The workbook has no sheets.' });
+      return;
+    }
+
+    const requested = input.sheetIndex ?? 0;
+    const sheetIndex = requested >= 0 && requested < sheetNames.length ? requested : 0;
+    const sheetName = sheetNames[sheetIndex];
+    const sheet = workbook.Sheets[sheetName];
 
     if (!sheet) {
-      ctx.postMessage({ error: 'The workbook has no sheets.' });
+      ctx.postMessage({ error: 'The selected sheet could not be read.' });
       return;
     }
 
     const raw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: false }) as unknown[][];
 
     if (raw.length === 0) {
-      ctx.postMessage({ error: 'The first sheet appears to be empty.' });
+      ctx.postMessage({ error: `The sheet "${sheetName}" appears to be empty.` });
       return;
     }
 
@@ -45,9 +69,10 @@ ctx.onmessage = (e: MessageEvent<ArrayBuffer>) => {
       return obj;
     });
 
-    const result: ExcelPreviewResult = { headers, rows };
+    const result: ExcelPreviewResult = { sheetNames, sheetIndex, headers, rows };
     ctx.postMessage({ result });
-  } catch {
+  } catch (err) {
+    console.error('[excel.worker] XLSX.read failed:', err);
     ctx.postMessage({ error: 'Could not read this file. Make sure it is a valid .xlsx workbook.' });
   }
 };

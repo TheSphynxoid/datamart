@@ -1,3 +1,5 @@
+using DataMart.Application.FunctionalTests.Fixtures;
+using DataMart.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DataMart.Application.FunctionalTests;
@@ -14,6 +16,19 @@ public class FunctionalTestSetup
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
+        // Materialise the test data sets (jeux de tests) to disk on the first run so the
+        // deliverable .xlsx files exist for the live demo. Idempotent: only writes missing
+        // files, so committed fixtures are preserved on subsequent runs. Non-fatal: tests
+        // use the same in-memory bytes regardless, so a disk-write failure must not abort
+        // the test suite.
+        try { ClientAccountFixtures.EnsureOnDisk(); }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[warn] Could not materialise fixtures to disk: {ex.Message}");
+        }
+
+        await AspireTestSupport.ResetPersistentDatabaseAsync();
+
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         var cancellationToken = cts.Token;
 

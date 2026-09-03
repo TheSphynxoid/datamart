@@ -5,12 +5,12 @@ using Shouldly;
 
 namespace DataMart.Application.UnitTests.Common.Exceptions;
 
-public class ValidationExceptionTests
+public class AppValidationExceptionTests
 {
     [Test]
     public void DefaultConstructorCreatesAnEmptyErrorDictionary()
     {
-        var actual = new ValidationException().Errors;
+        var actual = new AppValidationException().Errors;
 
         actual.Keys.ShouldBeEmpty();
     }
@@ -23,7 +23,7 @@ public class ValidationExceptionTests
                 new ValidationFailure("Age", "must be over 18"),
             };
 
-        var actual = new ValidationException(failures).Errors;
+        var actual = new AppValidationException(failures).Errors;
 
         actual.Keys.ShouldBe(new string[] { "Age" });
         actual["Age"].ShouldBe(new string[] { "must be over 18" });
@@ -42,7 +42,7 @@ public class ValidationExceptionTests
                 new ValidationFailure("Password", "must contain lower case letter"),
             };
 
-        var actual = new ValidationException(failures).Errors;
+        var actual = new AppValidationException(failures).Errors;
 
         actual.Keys.ShouldBe(new string[] { "Password", "Age" }, ignoreOrder: true);
 

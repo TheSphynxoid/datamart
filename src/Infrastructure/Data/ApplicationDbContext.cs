@@ -14,18 +14,38 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>, IApplica
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
 
-    public DbSet<TodoList> TodoLists => Set<TodoList>();
-
-    public DbSet<TodoItem> TodoItems => Set<TodoItem>();
-
     public DbSet<ImportRecord> ImportRecords => Set<ImportRecord>();
 
+    public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
+
+    public DbSet<ClientAccount> ClientAccounts => Set<ClientAccount>();
+
     public DbSet<Mapping> Mappings => Set<Mapping>();
+
+    public DbSet<CustomerTransaction> CustomerTransactions => Set<CustomerTransaction>();
+
+    public DbSet<AccessLog> AccessLogs => Set<AccessLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
         builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+
+        // Set database defaults for audit columns so Npgsql COPY (which bypasses EF Core)
+        // still gets valid timestamps instead of NULL constraint violations.
+        foreach (var entityType in builder.Model.GetEntityTypes())
+        {
+            if (!typeof(BaseAuditableEntity).IsAssignableFrom(entityType.ClrType))
+                continue;
+
+            var created = entityType.FindProperty(nameof(BaseAuditableEntity.Created));
+            if (created is not null)
+                created.SetDefaultValueSql("NOW()");
+
+            var lastModified = entityType.FindProperty(nameof(BaseAuditableEntity.LastModified));
+            if (lastModified is not null)
+                lastModified.SetDefaultValueSql("NOW()");
+        }
     }
 
     public EntitySchemaDto[] GetEntityList()
@@ -44,7 +64,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>, IApplica
                 //Some Reflection-like work.
                 propDtos.Add(new EntityPropertyDto(
                     prop.GetColumnName(),
-                    prop.ClrType.Name,
+                    Nullable.GetUnderlyingType(prop.ClrType)?.Name ?? prop.ClrType.Name,
                     prop.IsNullable,
                     prop.GetMaxLength(),
                     prop.GetPrecision(),

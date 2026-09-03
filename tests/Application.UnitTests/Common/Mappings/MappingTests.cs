@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using AutoMapper;
 using DataMart.Application.Common.Interfaces;
-using DataMart.Application.TodoLists.Queries.GetTodos;
+using DataMart.Application.Mappings;
 using DataMart.Domain.Entities;
 using Microsoft.Extensions.Logging;
 using NUnit.Framework;
@@ -34,8 +34,7 @@ public class MappingTests
     }
 
     [Test]
-    [TestCase(typeof(TodoList), typeof(TodoListDto))]
-    [TestCase(typeof(TodoItem), typeof(TodoItemDto))]
+    [TestCase(typeof(Mapping), typeof(MappingDto))]
     public void ShouldSupportMappingFromSourceToDestination(Type source, Type destination)
     {
         var instance = GetInstanceOf(source);

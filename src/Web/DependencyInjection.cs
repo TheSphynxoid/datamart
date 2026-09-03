@@ -18,6 +18,11 @@ public static class DependencyInjection
 
         builder.Services.AddExceptionHandler<ProblemDetailsExceptionHandler>();
 
+        // Without AllowStatusCode404Response = true, the default ExceptionHandlerMiddleware
+        // throws InvalidOperationException when the IExceptionHandler pipeline returns a 4xx
+        // status (e.g. NotFoundException -> 404 from ProblemDetailsExceptionHandler).
+        builder.Services.Configure<ExceptionHandlerOptions>(o => o.AllowStatusCode404Response = true);
+
         // Customise default API behaviour
         builder.Services.Configure<ApiBehaviorOptions>(options =>
             options.SuppressModelStateInvalidFilter = true);

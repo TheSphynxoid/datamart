@@ -1,0 +1,47 @@
+<dx-toolbar class="app-toolbar">
+  <dxi-item location="before">
+    <button type="button" class="hamburger-btn" (click)="toggleDrawer()" aria-label="Toggle navigation">
+      <lucide-icon name="menu" [size]="22" [strokeWidth]="2"></lucide-icon>
+    </button>
+  </dxi-item>
+
+  <dxi-item location="before">
+    <a class="brand" (click)="navigate('')">DataMart</a>
+  </dxi-item>
+
+  <dxi-item location="before">
+    <dx-button text="New import" icon="plus" type="default" (onClick)="navigate('excelmap')"></dx-button>
+  </dxi-item>
+
+  <dxi-item location="after" [locateInMenu]="'never'">
+    <app-theme-toggle></app-theme-toggle>
+  </dxi-item>
+
+  <dxi-item location="after" *ngIf="isAuthenticated$ | async" [locateInMenu]="'auto'">
+    <dx-drop-down-button text="Account" [items]="['Log out']" (onItemClick)="logout()"></dx-drop-down-button>
+  </dxi-item>
+
+  <dxi-item location="after" *ngIf="!(isAuthenticated$ | async)" [locateInMenu]="'never'">
+    <a class="nav-link" routerLink="/login">Log in</a>
+  </dxi-item>
+</dx-toolbar>
+
+<div class="app-body" [class.nav-open]="drawerOpen">
+  <nav class="side-nav" [class.open]="drawerOpen" aria-label="Primary">
+    <a *ngFor="let item of navItems"
+       class="nav-link-item"
+       [routerLink]="[item.route]"
+       routerLinkActive="active"
+       [routerLinkActiveOptions]="{ exact: item.exact }"
+       (click)="closeNav()">
+      <lucide-icon [name]="item.icon" [size]="18" [strokeWidth]="2"></lucide-icon>
+      <span>{{ item.text }}</span>
+    </a>
+  </nav>
+
+  <div class="scrim" *ngIf="drawerOpen" (click)="drawerOpen = false"></div>
+
+  <main class="app-content">
+    <router-outlet></router-outlet>
+  </main>
+</div>

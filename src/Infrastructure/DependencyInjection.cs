@@ -17,6 +17,8 @@ public static class DependencyInjection
         var connectionString = builder.Configuration.GetConnectionString(Services.Database);
         Guard.Against.Null(connectionString, message: $"Connection string '{Services.Database}' not found.");
 
+        builder.Services.AddNpgsqlDataSource(connectionString!);
+
         builder.Services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
         builder.Services.AddScoped<ISaveChangesInterceptor, DispatchDomainEventsInterceptor>();
 
@@ -52,5 +54,10 @@ public static class DependencyInjection
 
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddTransient<IIdentityService, IdentityService>();
+
+        builder.Services.AddSingleton<IImportJobQueue, ImportJobQueue>();
+        builder.Services.AddHostedService<ImportProcessingService>();
+
+        builder.Services.AddScoped<IAccessLogService, AccessLogService>();
     }
 }

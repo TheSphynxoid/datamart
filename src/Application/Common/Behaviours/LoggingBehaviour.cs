@@ -22,6 +22,7 @@ public class LoggingBehaviour<TRequest> : IRequestPreProcessor<TRequest>
     {
         var requestName = typeof(TRequest).Name;
         var userId = _user.Id ?? string.Empty;
+        var correlationId = Guid.NewGuid().ToString();
         string? userName = string.Empty;
 
         if (!string.IsNullOrEmpty(userId))
@@ -29,7 +30,7 @@ public class LoggingBehaviour<TRequest> : IRequestPreProcessor<TRequest>
             userName = await _identityService.GetUserNameAsync(userId);
         }
 
-        _logger.LogInformation("DataMart Request: {Name} {@UserId} {@UserName} {@Request}",
-            requestName, userId, userName, request);
+        _logger.LogInformation("DataMart Request: {Name} UserId={UserId} UserName={UserName} CorrelationId={CorrelationId} {@Request}",
+            requestName, userId, userName, correlationId, request);
     }
 }

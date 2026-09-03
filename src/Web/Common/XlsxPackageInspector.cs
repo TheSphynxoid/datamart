@@ -16,7 +16,7 @@ public static class XlsxPackageInspector
     // Conservative caps for a real .xlsx: a typical workbook has tens of entries and
     // decompresses to a few MB. Anything beyond these is a zip-bomb candidate.
     public const int DefaultMaxEntries = 1_000;
-    public const long DefaultMaxDecompressedBytes = 200L * 1024 * 1024; // 200 MB
+    public const long DefaultMaxDecompressedBytes = 600L * 1024 * 1024; // 600 MB (temporarily raised to allow 1.1M-row stress tests)
 
     public record XlsxPackageResult(
         bool IsValidOoxPackage,
