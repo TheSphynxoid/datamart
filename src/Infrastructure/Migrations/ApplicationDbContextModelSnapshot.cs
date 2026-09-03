@@ -221,6 +221,12 @@ namespace DataMart.Infrastructure.Migrations
                     b.Property<int?>("ImportBatchId")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("JournalIncomplete")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("JournalRowsWritten")
+                        .HasColumnType("integer");
+
                     b.Property<DateTimeOffset>("LastModified")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")

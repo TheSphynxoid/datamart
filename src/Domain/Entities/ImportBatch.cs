@@ -56,6 +56,22 @@ public class ImportBatch : BaseAuditableEntity
     public int ProcessedRows { get; set; }
     public int SkippedRows { get; set; }
     public string? SkippedRowsPreview { get; set; }
+
+    /// <summary>Number of <see cref="ImportRecord"/> rows persisted to the journal so far.
+    /// Starts at 0 after the target-table COPY commits and advances as the post-COPY
+    /// journal upload progresses. When this equals <see cref="TotalRows"/> the journal
+    /// is fully uploaded; the dashboard uses this to show/hide the "Journal uploading"
+    /// pill on Success batches.</summary>
+    public int JournalRowsWritten { get; set; }
+
+    /// <summary>True when the journal upload did not finish (chunk failure or process
+    /// death mid-upload). The remaining rows cannot be recovered because the source
+    /// Excel file is deleted after the import; this flag is the audit-visible marker
+    /// that the journal is partial. Reconciled to true on startup for any
+    /// Status=Success batch where <see cref="JournalRowsWritten"/> &lt;
+    /// <see cref="TotalRows"/>.</summary>
+    public bool JournalIncomplete { get; set; }
+
     public ICollection<ImportRecord> Records { get; set; } = [];
 
     // Reconciliation & Audit (FC-1, FC-2)
