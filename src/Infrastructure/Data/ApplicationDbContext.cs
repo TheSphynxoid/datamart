@@ -22,6 +22,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>, IApplica
 
     public DbSet<Mapping> Mappings => Set<Mapping>();
 
+    public DbSet<EntityValidationRule> EntityValidationRules => Set<EntityValidationRule>();
+
     public DbSet<CustomerTransaction> CustomerTransactions => Set<CustomerTransaction>();
 
     public DbSet<AccessLog> AccessLogs => Set<AccessLog>();

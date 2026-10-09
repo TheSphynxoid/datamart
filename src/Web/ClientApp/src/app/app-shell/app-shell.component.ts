@@ -16,6 +16,7 @@ export class AppShellComponent {
   readonly navItems = [
     { text: 'Dashboard', icon: 'home', route: '', exact: true },
     { text: 'Excel import', icon: 'upload', route: 'excelmap', exact: false },
+    { text: 'Validation rules', icon: 'settings', route: 'rules', exact: false },
   ];
 
   constructor(private authService: AuthService, private router: Router) {}

@@ -363,6 +363,12 @@
             </div>
           }
           <div class="step-actions">
+            @if (savedMappingId() === null) {
+              <p class="step-stat-hint">
+                <lucide-icon name="info" [size]="14"></lucide-icon>
+                Save this mapping to enable validation (step 4) and import (step 5).
+              </p>
+            }
             @if (m.filter(x => x.dbField !== null).length > 0 && !showSaveForm()) {
               <dx-button
                 text="Save as new mapping"
@@ -395,6 +401,23 @@
             [paging]="{ pageSize: 10, enabled: true }"
             [pager]="{ visible: true, showPageSizeSelector: true, allowedPageSizes: [10, 25, 50], showInfo: true }">
           </dx-data-grid>
+          <app-rule-list [rules]="entityRules()" [loading]="loadingRules()"></app-rule-list>
+          <div class="empty-mode-selector">
+            <label>Empty required fields (applies to validation and import):</label>
+            <dx-select-box
+              [items]="emptyFieldModes"
+              [value]="emptyMode()"
+              displayExpr="label"
+              valueExpr="value"
+              (onValueChanged)="onEmptyModeChanged($event.value)">
+            </dx-select-box>
+          </div>
+          @if (savedMappingId() === null) {
+            <p class="warning">
+              <lucide-icon name="alert-triangle" [size]="16"></lucide-icon>
+              Save your mapping configuration (step 3) before validating.
+            </p>
+          }
           <div class="validate-section">
             @if (validating()) {
               @if (validationProgress(); as p) {
@@ -465,6 +488,7 @@
             ({{ transformedRows().length }} rows shown in preview.)
           </p>
         </div>
+        <app-rule-list [rules]="entityRules()" [loading]="loadingRules()"></app-rule-list>
 
         @if (importing()) {
           @if (importProgress(); as p) {
@@ -543,29 +567,34 @@
               Save your mapping configuration (step 3) before importing.
             </p>
           } @else {
-            <div class="empty-mode-selector">
-              <label>Empty required fields:</label>
-              <dx-select-box
-                [items]="emptyFieldModes"
-                [value]="emptyMode()"
-                displayExpr="label"
-                valueExpr="value"
-                (onValueChanged)="emptyMode.set($event.value)">
-              </dx-select-box>
-            </div>
+            <p><small>Empty required fields: {{ emptyModeLabel() }} (chosen in step 4).</small></p>
           }
-          @if (validateReport() && (validateReport()!.rejectedRows ?? 0) > 0) {
+          @if (savedMappingId() !== null && !validateReport()) {
             <p class="warning">
               <lucide-icon name="alert-triangle" [size]="16"></lucide-icon>
-              Pre-flight validation found {{ validateReport()!.rejectedRows }} rejection(s).
-              Fix the file/mapping and re-validate before importing.
+              Run the pre-flight validation (step 4) before importing.
             </p>
+          }
+          @if (validateReport() && (validateReport()!.rejectedRows ?? 0) > 0) {
+            @if (emptyMode() === 0) {
+              <p class="warning">
+                <lucide-icon name="alert-triangle" [size]="16"></lucide-icon>
+                Pre-flight validation found {{ validateReport()!.rejectedRows }} rejection(s).
+                Fix the file/mapping and re-validate before importing.
+              </p>
+            } @else {
+              <p class="warning">
+                <lucide-icon name="alert-triangle" [size]="16"></lucide-icon>
+                Pre-flight validation found {{ validateReport()!.rejectedRows }} rejection(s).
+                They will be skipped (or defaulted) at import under the chosen mode.
+              </p>
+            }
           }
           <div class="step-actions">
             <dx-button
               text="Import"
               type="default"
-              [disabled]="savedMappingId() === null || ((validateReport()?.rejectedRows ?? 0) > 0)"
+              [disabled]="savedMappingId() === null || validateReport() === null || ((validateReport()?.rejectedRows ?? 0) > 0 && emptyMode() === 0)"
               (onClick)="confirmImport()">
             </dx-button>
           </div>

@@ -1,0 +1,66 @@
+.rules-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 960px;
+}
+
+.rules-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.toolbar-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 240px;
+}
+
+.rule-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-top: 1px solid #ccc;
+  padding-top: 1rem;
+  max-width: 560px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.mode-toggle {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.quick-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+  border: 1px dashed #999;
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+
+.quick-setup .form-field {
+  width: 100%;
+}
+
+.rule-preview code {
+  font-size: 0.9em;
+}
+
+.error {
+  font-weight: 600;
+}
+
+.warning {
+  font-style: italic;
+}

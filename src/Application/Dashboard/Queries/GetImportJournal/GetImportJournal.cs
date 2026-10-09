@@ -45,9 +45,10 @@ public class GetImportJournalQueryHandler : IRequestHandler<GetImportJournalQuer
 
         // A non-existent batch id should be a 404, not an empty page. Guard at the
         // boundary so the caller (web endpoint) can rely on a clean result.
-        var batchExists = await _context.ImportBatches
-            .AnyAsync(b => b.Id == request.BatchId, cancellationToken);
-        Guard.Against.NotFound(request.BatchId, batchExists);
+        // NOTE: Guard.Against.NotFound null-checks its input, so it must receive the
+        // entity (null when missing) — passing a bool would never throw.
+        var batch = await _context.ImportBatches.FindAsync([request.BatchId], cancellationToken);
+        Guard.Against.NotFound(request.BatchId, batch);
 
         var q = _context.ImportRecords
             .Where(r => r.ImportBatchId == request.BatchId);

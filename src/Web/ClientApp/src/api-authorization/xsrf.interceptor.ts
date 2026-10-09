@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
-import { HttpInterceptor, HttpRequest, HttpHandler, HttpEvent, HttpBackend, HttpResponse, HttpEventType } from '@angular/common/http';
-import { Observable, switchMap, catchError, filter, of } from 'rxjs';
+import { HttpInterceptor, HttpRequest, HttpHandler, HttpEvent, HttpBackend, HttpResponse, HttpEventType, HttpErrorResponse } from '@angular/common/http';
+import { Observable, switchMap, catchError, filter, of, throwError } from 'rxjs';
 
 /**
  * Adds the ASP.NET Core antiforgery token to outgoing requests so the server
@@ -20,9 +20,14 @@ import { Observable, switchMap, catchError, filter, of } from 'rxjs';
  * the header needs the derived request token. Swapping them is exactly what the
  * framework rejects with "The cookie token and the request token were swapped".
  *
- * Self-heal: if a state-changing request goes out without a cached token, this
- * interceptor primes the token via GET /api/antiforgery and retries once. The prime
- * itself is GET, which doesn't need the header, and it returns the fresh request token.
+ * Self-heal covers two cases:
+ * - cache miss (e.g. after a hard refresh): prime via GET /api/antiforgery
+ *   and retry once;
+ * - stale cache (e.g. the server restarted and rotated its keys while the SPA
+ *   stayed alive): the request goes out with the old token, the server answers
+ *   400 with the `https://datamart/antiforgery` problem marker, the cache is
+ *   dropped and the request is re-primed and retried once. A second failure
+ *   propagates to the subscriber — at most two attempts, no retry loop.
  */
 @Injectable({
   providedIn: 'root'
@@ -45,10 +50,37 @@ export class XsrfInterceptor implements HttpInterceptor {
     }
 
     if (this.cachedRequestToken) {
-      return next.handle(this.withToken(req, this.cachedRequestToken));
+      return next.handle(this.withToken(req, this.cachedRequestToken)).pipe(
+        catchError((error: unknown) => this.recoverFromStaleToken(error, req, next))
+      );
     }
 
     return this.primeAndRetry(req, next);
+  }
+
+  private recoverFromStaleToken(
+    error: unknown, req: HttpRequest<any>, next: HttpHandler
+  ): Observable<HttpEvent<any>> {
+    if (!this.isAntiforgeryRejection(error)) {
+      return throwError(() => error);
+    }
+    // Drop the stale token and go through the normal prime path once. Its
+    // errors propagate untouched, so a genuinely failing request surfaces.
+    this.cachedRequestToken = null;
+    return this.primeAndRetry(req, next);
+  }
+
+  private isAntiforgeryRejection(error: unknown): boolean {
+    if (!(error instanceof HttpErrorResponse) || error.status !== 400) {
+      return false;
+    }
+    const body = error.error as { type?: unknown; title?: unknown } | null;
+    if (!body || typeof body !== 'object') {
+      return false;
+    }
+    const type = typeof body.type === 'string' ? body.type : '';
+    const title = typeof body.title === 'string' ? body.title : '';
+    return type.includes('antiforgery') || title.toLowerCase().includes('forgery');
   }
 
   private withToken(req: HttpRequest<any>, token: string): HttpRequest<any> {

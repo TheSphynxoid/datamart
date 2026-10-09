@@ -20,6 +20,8 @@ import { AuthService } from 'src/api-authorization/auth.service';
 import { FileUploadComponent } from './file-upload/file-upload.component';
 import { ExcelMapComponent } from './Excelmap/excelmap.component';
 import { ReportErrorsComponent } from './report-errors/report-errors.component';
+import { EntityRulesComponent } from './entity-rules/entity-rules.component';
+import { RuleListComponent } from './entity-rules/rule-list.component';
 import { DxDataGridModule } from 'devextreme-angular/ui/data-grid';
 import { DxFormModule } from 'devextreme-angular/ui/form';
 import { DxButtonModule } from 'devextreme-angular/ui/button';
@@ -51,7 +53,9 @@ export function getApiBaseUrl(): string {
         RegisterComponent,
         FileUploadComponent,
         ExcelMapComponent,
-        ReportErrorsComponent
+        ReportErrorsComponent,
+        EntityRulesComponent,
+        RuleListComponent
     ],
     bootstrap: [AppComponent],
     imports: [
@@ -77,7 +81,8 @@ export function getApiBaseUrl(): string {
             { path: '', component: DashboardComponent, pathMatch: 'full', canActivate: [AuthGuard] },
             { path: 'login', component: LoginComponent },
             { path: 'register', component: RegisterComponent },
-            { path: 'excelmap', component: ExcelMapComponent, canActivate: [AuthGuard] }
+            { path: 'excelmap', component: ExcelMapComponent, canActivate: [AuthGuard] },
+            { path: 'rules', component: EntityRulesComponent, canActivate: [AuthGuard] }
         ])
     ],
     providers: [

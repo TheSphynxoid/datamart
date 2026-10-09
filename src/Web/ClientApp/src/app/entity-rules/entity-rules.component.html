@@ -1,0 +1,236 @@
+<div class="rules-page">
+  <h1>Validation rules</h1>
+  <p>
+    Per-entity import rules. Every active rule must pass for a row to import.
+    Changes apply to all future imports of the entity &mdash; there is no per-mapping override.
+  </p>
+
+  <div class="rules-toolbar">
+    <label class="toolbar-field">
+      <span>Entity</span>
+      <dx-select-box
+        [items]="entityNames()"
+        [value]="selectedEntity()"
+        placeholder="Select an entity&hellip;"
+        [searchEnabled]="true"
+        (onValueChanged)="onEntitySelected($event.value)">
+      </dx-select-box>
+    </label>
+    <dx-check-box
+      [value]="showInactive()"
+      (onValueChanged)="onShowInactiveChanged($event.value)"
+      text="Show inactive">
+    </dx-check-box>
+    <dx-button
+      text="New rule"
+      type="default"
+      [disabled]="!selectedEntity() || fieldOptions().length === 0"
+      (onClick)="newRule()">
+    </dx-button>
+  </div>
+
+  @if (rulesError()) {
+    <p class="error">{{ rulesError() }}</p>
+  } @else if (loadingRules()) {
+    <dx-load-indicator [visible]="true" hint="Loading rules&hellip;"></dx-load-indicator>
+  } @else if (selectedEntity() && rules().length === 0) {
+    <p><small>No rules for this entity yet &mdash; every well-formed row imports.</small></p>
+  } @else if (rules().length > 0) {
+    <dx-data-grid
+      [dataSource]="rules()"
+      [showBorders]="true"
+      [columnAutoWidth]="true"
+      [wordWrapEnabled]="true"
+      [paging]="{ pageSize: 20, enabled: true }"
+      [pager]="{ visible: true, showInfo: true }">
+      <dxi-column dataField="field" caption="Field"></dxi-column>
+      <dxi-column caption="Rule" [calculateCellValue]="ruleText"></dxi-column>
+      <dxi-column dataField="message" caption="Message"></dxi-column>
+      <dxi-column caption="Active" [calculateCellValue]="activeText" [width]="80"></dxi-column>
+      <dxi-column caption="" cellTemplate="editTemplate" [width]="90"></dxi-column>
+      <div *dxTemplate="let cell of 'editTemplate'">
+        <dx-button text="Edit" (onClick)="editRule(cell.data)"></dx-button>
+      </div>
+    </dx-data-grid>
+  }
+
+  @if (draft(); as d) {
+    <div class="rule-form">
+      <h3>{{ d.id === null ? 'New rule' : 'Edit rule' }} &mdash; {{ selectedEntity() }}</h3>
+      @if (!quickMode()) {
+        <p class="rule-preview"><small>Preview: <code>{{ previewText() }}</code>@if (previewExplanation()) { <span> &mdash; {{ previewExplanation() }}</span> }</small></p>
+      }
+
+      <label class="form-field">
+        <span>Field</span>
+        <dx-select-box
+          [items]="fieldOptions()"
+          [value]="d.field"
+          displayExpr="name"
+          valueExpr="name"
+          (onValueChanged)="onFieldChanged($event.value)">
+        </dx-select-box>
+      </label>
+
+      <div class="mode-toggle">
+        <dx-button
+          text="Quick setup"
+          [type]="quickMode() ? 'default' : 'normal'"
+          (onClick)="quickMode.set(true)">
+        </dx-button>
+        <dx-button
+          text="Custom details"
+          [type]="!quickMode() ? 'default' : 'normal'"
+          (onClick)="quickMode.set(false)">
+        </dx-button>
+      </div>
+
+      @if (quickMode()) {
+        @if (draftOperators().length === 0) {
+          <p class="warning"><small>This field type cannot carry rules.</small></p>
+        } @else {
+          <div class="quick-setup">
+            <label class="form-field">
+              <span>Template</span>
+              <dx-select-box
+                [items]="quickTemplates()"
+                [value]="quickTemplate()"
+                valueExpr="value"
+                displayExpr="label"
+                (onValueChanged)="quickTemplate.set($event.value); quickError.set(null)">
+              </dx-select-box>
+            </label>
+            @if (quickNeedsN()) {
+              <label class="form-field">
+                <span>{{ quickNLabel() }}</span>
+                <dx-text-box
+                  [value]="quickN()"
+                  placeholder="18"
+                  (onValueChanged)="quickN.set($event.value ?? '')">
+                </dx-text-box>
+              </label>
+            }
+            @if (quickNeedsValues()) {
+              <label class="form-field">
+                <span>Values (comma-separated)</span>
+                <dx-text-box
+                  [value]="quickValues()"
+                  placeholder="M, F"
+                  (onValueChanged)="quickValues.set($event.value ?? '')">
+                </dx-text-box>
+              </label>
+            }
+            @if (quickTemplate() !== 'custom') {
+              <dx-button text="Apply" type="default" (onClick)="applyQuickTemplate()"></dx-button>
+            } @else {
+              <p><small>Pick a template to fill the rule in one shot, or switch to Custom details to fill every field by hand.</small></p>
+            }
+            @if (quickError()) {
+              <p class="error">{{ quickError() }}</p>
+            }
+          </div>
+        }
+      } @else {
+        @if (draftOperators().length === 0) {
+          <p class="warning"><small>This field type cannot carry rules.</small></p>
+        } @else {
+        <label class="form-field">
+          <span>Operator</span>
+          <dx-select-box
+            [items]="draftOperators()"
+            [value]="d.operator"
+            valueExpr="value"
+            displayExpr="label"
+            (onValueChanged)="patch({ operator: $event.value })">
+          </dx-select-box>
+        </label>
+
+        @if (draftKind() === 'date') {
+          <label class="form-field">
+            <span>Compare against</span>
+            <dx-select-box
+              [items]="sourceOptions"
+              [value]="d.valueSource"
+              valueExpr="value"
+              displayExpr="label"
+              (onValueChanged)="onSourceChanged($event.value)">
+            </dx-select-box>
+          </label>
+        }
+
+        @if (isMembership()) {
+          <label class="form-field">
+            <span>Values (comma-separated)</span>
+            <dx-text-box
+              [value]="d.valuesText"
+              placeholder="M, F"
+              (onValueChanged)="patch({ valuesText: $event.value ?? '' })">
+            </dx-text-box>
+          </label>
+        } @else if (isFunctionSource()) {
+          <label class="form-field">
+            <span>Function</span>
+            <dx-select-box
+              [items]="functionOptions"
+              [value]="d.function"
+              valueExpr="value"
+              displayExpr="label"
+              (onValueChanged)="patch({ function: $event.value })">
+            </dx-select-box>
+          </label>
+          @if (needsFunctionArg()) {
+            <label class="form-field">
+              <span>Years / days</span>
+              <dx-text-box
+                [value]="d.functionArg"
+                placeholder="18"
+                (onValueChanged)="patch({ functionArg: $event.value ?? '' })">
+              </dx-text-box>
+            </label>
+          }
+        } @else {
+          <label class="form-field">
+            <span>Value</span>
+            <dx-text-box
+              [value]="d.value"
+              (onValueChanged)="patch({ value: $event.value ?? '' })">
+            </dx-text-box>
+          </label>
+        }
+        }
+      }
+
+      <label class="form-field">
+        <span>Message (optional, shown when a row fails)</span>
+        <dx-text-box
+          [value]="d.message"
+          placeholder="Must be 18 or older"
+          (onValueChanged)="patch({ message: $event.value ?? '' })">
+        </dx-text-box>
+      </label>
+
+      @if (d.id !== null) {
+        <dx-check-box
+          [value]="d.isActive"
+          (onValueChanged)="patch({ isActive: $event.value })"
+          text="Active (uncheck to deactivate; rules are never deleted)">
+        </dx-check-box>
+      }
+
+      @if (saveError()) {
+        <p class="error">{{ saveError() }}</p>
+      }
+      <div class="step-actions">
+        @if (!quickMode()) {
+          <dx-button
+            text="Save rule"
+            type="default"
+            [disabled]="!canSave()"
+            (onClick)="saveRule()">
+          </dx-button>
+        }
+        <dx-button text="Cancel" (onClick)="cancelEdit()"></dx-button>
+      </div>
+    </div>
+  }
+</div>

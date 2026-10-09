@@ -1,5 +1,5 @@
 import { Component, OnInit, OnDestroy, signal, effect, computed } from '@angular/core';
-import { EntitySchemaClient, EntitySchemaDto, EntityPropertyDto, ImportClient, MappingEndpointsClient, MappingDto, ColumnMappingDto, CreateMappingCommand, ImportBatchDto, ImportReportDto, ValidationStatusDto } from '../web-api-client';
+import { EntitySchemaClient, EntitySchemaDto, EntityPropertyDto, ImportClient, MappingEndpointsClient, MappingDto, ColumnMappingDto, CreateMappingCommand, ImportBatchDto, ImportReportDto, ValidationStatusDto, EntityRuleEndpointsClient, EntityValidationRuleDto } from '../web-api-client';
 import type { ExcelPreviewResult } from './excel.worker';
 import { detectDateFormat, detectTimeFormat } from './format-detection';
 import { transformCell, FormatCategory } from './cell-transform';
@@ -180,6 +180,8 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
   protected validating = signal(false);
   protected validationProgress = signal<ValidationStatusDto | null>(null);
   protected validationError = signal<string | null>(null);
+  protected entityRules = signal<EntityValidationRuleDto[] | null>(null);
+  protected loadingRules = signal(false);
   private importPoll: PollerHandle = { stop: () => {} };
   private validationPoll: PollerHandle = { stop: () => {} };
 
@@ -217,7 +219,8 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
   constructor(
     private entitySchemaClient: EntitySchemaClient,
     private mappingClient: MappingEndpointsClient,
-    private importClient: ImportClient
+    private importClient: ImportClient,
+    private entityRuleClient: EntityRuleEndpointsClient
   ) {
     effect(() => {
       if (this.currentStepId() === 'target') {
@@ -235,6 +238,29 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
       if (this.currentStepId() === 'map' && this.selectedEntity()) {
         this.loadSavedMappings();
       }
+    });
+
+    // Rules are per-entity and read-only in the wizard: reload whenever the
+    // target changes so steps 4-5 always describe the rules that will judge
+    // this import. Inactive rules are excluded (activeOnly).
+    effect(() => {
+      const entity = this.selectedEntity();
+      if (!entity?.name) {
+        this.entityRules.set(null);
+        return;
+      }
+      this.loadingRules.set(true);
+      this.entityRuleClient.getEntityRules(entity.name, true).subscribe({
+        next: rules => {
+          this.entityRules.set(rules);
+          this.loadingRules.set(false);
+        },
+        error: error => {
+          this.entityRules.set([]);
+          this.loadingRules.set(false);
+          console.error('Failed to load validation rules', error);
+        }
+      });
     });
   }
 
@@ -475,6 +501,7 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
     const current = this.mapping();
     if (!current) return;
     this.savedMappingId.set(null);
+    this.clearValidationState();
     this.mapping.set(
       current.map((m, i) => {
         if (i !== index) return m;
@@ -534,6 +561,11 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
     const current = this.mapping();
     if (!current) return;
     const val = value && value.trim() !== '' ? value : undefined;
+    // Format edits change what validation/import would do, so the saved
+    // mapping id (if any) no longer describes the on-screen mapping, and any
+    // validation report is stale.
+    this.savedMappingId.set(null);
+    this.clearValidationState();
     this.mapping.set(
       current.map((m, i) => {
         if (i !== index) return m;
@@ -549,11 +581,27 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
     const checked = (event.target as HTMLInputElement).checked;
     const current = this.mapping();
     if (!current) return;
+    // Same staleness rule as onFormatChanged: Required/stripSymbols change
+    // the verdict, so drop the saved id and any validation report.
+    this.savedMappingId.set(null);
+    this.clearValidationState();
     this.mapping.set(
       current.map((m, i) =>
         i === index ? { ...m, [field]: checked } : m
       )
     );
+  }
+
+  protected emptyModeLabel(): string {
+    return this.emptyFieldModes.find(m => m.value === this.emptyMode())?.label ?? '';
+  }
+
+  protected onEmptyModeChanged(value: number): void {
+    if (this.emptyMode() === value) return;
+    this.emptyMode.set(value);
+    // The mode is an input to validation: a report produced under a different
+    // mode is not evidence for this import. Force a re-validation.
+    this.clearValidationState();
   }
 
   protected onEntityChanged(value: EntitySchemaDto): void {

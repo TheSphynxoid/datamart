@@ -371,6 +371,249 @@ export class DashboardClient implements IDashboardClient {
     }
 }
 
+export interface IEntityRuleEndpointsClient {
+    /**
+     * @param activeOnly (optional) 
+     * @return OK
+     */
+    getEntityRules(targetEntity: string, activeOnly: boolean | undefined): Observable<EntityValidationRuleDto[]>;
+    /**
+     * @return Created
+     */
+    createEntityRule(body: CreateEntityRuleCommand): Observable<number>;
+    /**
+     * @return No Content
+     */
+    updateEntityRule(id: number, body: UpdateEntityRuleCommand): Observable<void>;
+}
+
+@Injectable({
+    providedIn: 'root'
+})
+export class EntityRuleEndpointsClient implements IEntityRuleEndpointsClient {
+    private http: HttpClient;
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(@Inject(HttpClient) http: HttpClient, @Optional() @Inject(API_BASE_URL) baseUrl?: string) {
+        this.http = http;
+        this.baseUrl = baseUrl ?? "";
+    }
+
+    /**
+     * @param activeOnly (optional) 
+     * @return OK
+     */
+    getEntityRules(targetEntity: string, activeOnly: boolean | undefined): Observable<EntityValidationRuleDto[]> {
+        let url_ = this.baseUrl + "/api/entity-rules?";
+        if (targetEntity === undefined || targetEntity === null)
+            throw new globalThis.Error("The parameter 'targetEntity' must be defined and cannot be null.");
+        else
+            url_ += "targetEntity=" + encodeURIComponent("" + targetEntity) + "&";
+        if (activeOnly === null)
+            throw new globalThis.Error("The parameter 'activeOnly' cannot be null.");
+        else if (activeOnly !== undefined)
+            url_ += "activeOnly=" + encodeURIComponent("" + activeOnly) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processGetEntityRules(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processGetEntityRules(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<EntityValidationRuleDto[]>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<EntityValidationRuleDto[]>;
+        }));
+    }
+
+    protected processGetEntityRules(response: HttpResponseBase): Observable<EntityValidationRuleDto[]> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            let resultData200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver);
+            if (Array.isArray(resultData200)) {
+                result200 = [] as any;
+                for (let item of resultData200)
+                    result200!.push(EntityValidationRuleDto.fromJS(item));
+            }
+            else {
+                result200 = null as any;
+            }
+            return _observableOf(result200);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Bad Request", status, _responseText, _headers);
+            }));
+        } else if (status === 401) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Unauthorized", status, _responseText, _headers);
+            }));
+        } else if (status === 403) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Forbidden", status, _responseText, _headers);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return Created
+     */
+    createEntityRule(body: CreateEntityRuleCommand): Observable<number> {
+        let url_ = this.baseUrl + "/api/entity-rules";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processCreateEntityRule(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processCreateEntityRule(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<number>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<number>;
+        }));
+    }
+
+    protected processCreateEntityRule(response: HttpResponseBase): Observable<number> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 201) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result201: any = null;
+            let resultData201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver);
+                result201 = resultData201 !== undefined ? resultData201 : null as any;
+    
+            return _observableOf(result201);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Bad Request", status, _responseText, _headers);
+            }));
+        } else if (status === 401) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Unauthorized", status, _responseText, _headers);
+            }));
+        } else if (status === 403) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Forbidden", status, _responseText, _headers);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return No Content
+     */
+    updateEntityRule(id: number, body: UpdateEntityRuleCommand): Observable<void> {
+        let url_ = this.baseUrl + "/api/entity-rules/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+            })
+        };
+
+        return this.http.request("put", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processUpdateEntityRule(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processUpdateEntityRule(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<void>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<void>;
+        }));
+    }
+
+    protected processUpdateEntityRule(response: HttpResponseBase): Observable<void> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return _observableOf(null as any);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Bad Request", status, _responseText, _headers);
+            }));
+        } else if (status === 401) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Unauthorized", status, _responseText, _headers);
+            }));
+        } else if (status === 403) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Forbidden", status, _responseText, _headers);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+}
+
 export interface IEntitySchemaClient {
     /**
      * Get Entities' Schema
@@ -2422,6 +2665,94 @@ export interface IColumnMappingDto {
     [key: string]: any;
 }
 
+export class CreateEntityRuleCommand implements ICreateEntityRuleCommand {
+    targetEntity!: string;
+    field!: string;
+    operator!: string;
+    valueSource!: string;
+    value!: string | undefined;
+    values!: string[] | undefined;
+    function!: string | undefined;
+    functionArg!: number | undefined;
+    message!: string | undefined;
+
+    [key: string]: any;
+
+    constructor(data?: ICreateEntityRuleCommand) {
+        if (data) {
+            for (var property in data) {
+                if (data.hasOwnProperty(property))
+                    (this as any)[property] = (data as any)[property];
+            }
+        }
+    }
+
+    init(_data?: any) {
+        if (_data) {
+            for (var property in _data) {
+                if (_data.hasOwnProperty(property))
+                    this[property] = _data[property];
+            }
+            this.targetEntity = _data["targetEntity"];
+            this.field = _data["field"];
+            this.operator = _data["operator"];
+            this.valueSource = _data["valueSource"];
+            this.value = _data["value"];
+            if (Array.isArray(_data["values"])) {
+                this.values = [] as any;
+                for (let item of _data["values"])
+                    this.values!.push(item);
+            }
+            this.function = _data["function"];
+            this.functionArg = _data["functionArg"];
+            this.message = _data["message"];
+        }
+    }
+
+    static fromJS(data: any): CreateEntityRuleCommand {
+        data = typeof data === 'object' ? data : {};
+        let result = new CreateEntityRuleCommand();
+        result.init(data);
+        return result;
+    }
+
+    toJSON(data?: any) {
+        data = typeof data === 'object' ? data : {};
+        for (var property in this) {
+            if (this.hasOwnProperty(property))
+                data[property] = this[property];
+        }
+        data["targetEntity"] = this.targetEntity;
+        data["field"] = this.field;
+        data["operator"] = this.operator;
+        data["valueSource"] = this.valueSource;
+        data["value"] = this.value;
+        if (Array.isArray(this.values)) {
+            data["values"] = [];
+            for (let item of this.values)
+                data["values"].push(item);
+        }
+        data["function"] = this.function;
+        data["functionArg"] = this.functionArg;
+        data["message"] = this.message;
+        return data;
+    }
+}
+
+export interface ICreateEntityRuleCommand {
+    targetEntity: string;
+    field: string;
+    operator: string;
+    valueSource: string;
+    value: string | undefined;
+    values: string[] | undefined;
+    function: string | undefined;
+    functionArg: number | undefined;
+    message: string | undefined;
+
+    [key: string]: any;
+}
+
 export class CreateMappingCommand implements ICreateMappingCommand {
     name!: string;
     description!: string | undefined;
@@ -2661,6 +2992,105 @@ export interface IEntitySchemaDto {
     name: string;
     primaryKey: string[];
     properties: EntityPropertyDto[];
+
+    [key: string]: any;
+}
+
+export class EntityValidationRuleDto implements IEntityValidationRuleDto {
+    id!: number;
+    targetEntity!: string;
+    field!: string;
+    operator!: string;
+    valueSource!: string;
+    value!: string | undefined;
+    values!: string[];
+    function!: string | undefined;
+    functionArg!: number | undefined;
+    message!: string | undefined;
+    isActive!: boolean;
+
+    [key: string]: any;
+
+    constructor(data?: IEntityValidationRuleDto) {
+        if (data) {
+            for (var property in data) {
+                if (data.hasOwnProperty(property))
+                    (this as any)[property] = (data as any)[property];
+            }
+        }
+        if (!data) {
+            this.values = [];
+        }
+    }
+
+    init(_data?: any) {
+        if (_data) {
+            for (var property in _data) {
+                if (_data.hasOwnProperty(property))
+                    this[property] = _data[property];
+            }
+            this.id = _data["id"];
+            this.targetEntity = _data["targetEntity"];
+            this.field = _data["field"];
+            this.operator = _data["operator"];
+            this.valueSource = _data["valueSource"];
+            this.value = _data["value"];
+            if (Array.isArray(_data["values"])) {
+                this.values = [] as any;
+                for (let item of _data["values"])
+                    this.values!.push(item);
+            }
+            this.function = _data["function"];
+            this.functionArg = _data["functionArg"];
+            this.message = _data["message"];
+            this.isActive = _data["isActive"];
+        }
+    }
+
+    static fromJS(data: any): EntityValidationRuleDto {
+        data = typeof data === 'object' ? data : {};
+        let result = new EntityValidationRuleDto();
+        result.init(data);
+        return result;
+    }
+
+    toJSON(data?: any) {
+        data = typeof data === 'object' ? data : {};
+        for (var property in this) {
+            if (this.hasOwnProperty(property))
+                data[property] = this[property];
+        }
+        data["id"] = this.id;
+        data["targetEntity"] = this.targetEntity;
+        data["field"] = this.field;
+        data["operator"] = this.operator;
+        data["valueSource"] = this.valueSource;
+        data["value"] = this.value;
+        if (Array.isArray(this.values)) {
+            data["values"] = [];
+            for (let item of this.values)
+                data["values"].push(item);
+        }
+        data["function"] = this.function;
+        data["functionArg"] = this.functionArg;
+        data["message"] = this.message;
+        data["isActive"] = this.isActive;
+        return data;
+    }
+}
+
+export interface IEntityValidationRuleDto {
+    id: number;
+    targetEntity: string;
+    field: string;
+    operator: string;
+    valueSource: string;
+    value: string | undefined;
+    values: string[];
+    function: string | undefined;
+    functionArg: number | undefined;
+    message: string | undefined;
+    isActive: boolean;
 
     [key: string]: any;
 }
@@ -2957,6 +3387,7 @@ export class ImportBatchListItemDto implements IImportBatchListItemDto {
     processedRows!: number;
     skippedRows!: number;
     journalRowsWritten!: number;
+    journalIncomplete!: boolean;
     executedBy!: string | undefined;
     created!: Date;
 
@@ -2985,6 +3416,7 @@ export class ImportBatchListItemDto implements IImportBatchListItemDto {
             this.processedRows = _data["processedRows"];
             this.skippedRows = _data["skippedRows"];
             this.journalRowsWritten = _data["journalRowsWritten"];
+            this.journalIncomplete = _data["journalIncomplete"];
             this.executedBy = _data["executedBy"];
             this.created = _data["created"] ? new Date(_data["created"].toString()) : undefined as any;
         }
@@ -3011,6 +3443,7 @@ export class ImportBatchListItemDto implements IImportBatchListItemDto {
         data["processedRows"] = this.processedRows;
         data["skippedRows"] = this.skippedRows;
         data["journalRowsWritten"] = this.journalRowsWritten;
+        data["journalIncomplete"] = this.journalIncomplete;
         data["executedBy"] = this.executedBy;
         data["created"] = this.created ? this.created.toISOString() : undefined as any;
         return data;
@@ -3026,6 +3459,7 @@ export interface IImportBatchListItemDto {
     processedRows: number;
     skippedRows: number;
     journalRowsWritten: number;
+    journalIncomplete: boolean;
     executedBy: string | undefined;
     created: Date;
 
@@ -4073,6 +4507,102 @@ export interface ITwoFactorResponse {
     recoveryCodes?: string[] | undefined;
     isTwoFactorEnabled: boolean;
     isMachineRemembered: boolean;
+
+    [key: string]: any;
+}
+
+export class UpdateEntityRuleCommand implements IUpdateEntityRuleCommand {
+    id!: number;
+    targetEntity!: string;
+    field!: string;
+    operator!: string;
+    valueSource!: string;
+    value!: string | undefined;
+    values!: string[] | undefined;
+    function!: string | undefined;
+    functionArg!: number | undefined;
+    message!: string | undefined;
+    isActive!: boolean;
+
+    [key: string]: any;
+
+    constructor(data?: IUpdateEntityRuleCommand) {
+        if (data) {
+            for (var property in data) {
+                if (data.hasOwnProperty(property))
+                    (this as any)[property] = (data as any)[property];
+            }
+        }
+    }
+
+    init(_data?: any) {
+        if (_data) {
+            for (var property in _data) {
+                if (_data.hasOwnProperty(property))
+                    this[property] = _data[property];
+            }
+            this.id = _data["id"];
+            this.targetEntity = _data["targetEntity"];
+            this.field = _data["field"];
+            this.operator = _data["operator"];
+            this.valueSource = _data["valueSource"];
+            this.value = _data["value"];
+            if (Array.isArray(_data["values"])) {
+                this.values = [] as any;
+                for (let item of _data["values"])
+                    this.values!.push(item);
+            }
+            this.function = _data["function"];
+            this.functionArg = _data["functionArg"];
+            this.message = _data["message"];
+            this.isActive = _data["isActive"];
+        }
+    }
+
+    static fromJS(data: any): UpdateEntityRuleCommand {
+        data = typeof data === 'object' ? data : {};
+        let result = new UpdateEntityRuleCommand();
+        result.init(data);
+        return result;
+    }
+
+    toJSON(data?: any) {
+        data = typeof data === 'object' ? data : {};
+        for (var property in this) {
+            if (this.hasOwnProperty(property))
+                data[property] = this[property];
+        }
+        data["id"] = this.id;
+        data["targetEntity"] = this.targetEntity;
+        data["field"] = this.field;
+        data["operator"] = this.operator;
+        data["valueSource"] = this.valueSource;
+        data["value"] = this.value;
+        if (Array.isArray(this.values)) {
+            data["values"] = [];
+            for (let item of this.values)
+                data["values"].push(item);
+        }
+        data["function"] = this.function;
+        data["functionArg"] = this.functionArg;
+        data["message"] = this.message;
+        data["isActive"] = this.isActive;
+        return data;
+    }
+}
+
+export interface IUpdateEntityRuleCommand {
+    id: number;
+    targetEntity: string;
+    field: string;
+    operator: string;
+    valueSource: string;
+    value: string | undefined;
+    values: string[] | undefined;
+    function: string | undefined;
+    functionArg: number | undefined;
+    message: string | undefined;
+    isActive: boolean;
 
     [key: string]: any;
 }

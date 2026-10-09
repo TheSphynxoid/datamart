@@ -12,6 +12,7 @@ using System.Diagnostics;
 using DataMart.Application.Common.Exceptions;
 using DataMart.Application.Common.Interfaces;
 using DataMart.Application.ImportFile.Common;
+using DataMart.Application.EntityRules.Common;
 using DataMart.Domain.Entities;
 using DataMart.Domain.Enums;
 using ExcelDataReader;
@@ -30,13 +31,15 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
         private readonly IBulkImporter _importer;
         private readonly IApplicationDbContext _context;
         private readonly IEntitySchemaService _entitySchemaService;
+        private readonly TimeProvider _timeProvider;
         private readonly ILogger<ImportFileExecutor> _logger;
 
-        public ImportFileExecutor(IBulkImporter importer, IApplicationDbContext context, IEntitySchemaService entitySchemaService, ILogger<ImportFileExecutor> logger)
+        public ImportFileExecutor(IBulkImporter importer, IApplicationDbContext context, IEntitySchemaService entitySchemaService, TimeProvider timeProvider, ILogger<ImportFileExecutor> logger)
         {
             _importer = importer;
             _context = context;
             _entitySchemaService = entitySchemaService;
+            _timeProvider = timeProvider;
             _logger = logger;
         }
 
@@ -117,6 +120,16 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                     if (am.IsRequired)
                         requiredColumns.Add(am.TargetColName);
                 }
+
+                // Per-entity validation rules: loaded once per run so a rule edited
+                // mid-flight cannot change the verdict halfway through.
+                var rules = await _context.EntityValidationRules
+                    .AsNoTracking()
+                    .Where(r => r.TargetEntity == mapping.TargetEntity && r.IsActive)
+                    .ToListAsync(cancellationToken);
+
+                var nowUtc = _timeProvider.GetUtcNow();
+
                 var columns = new List<ImportColumn>();
                 var columnStats = new List<ColumnStats>();
 
@@ -200,6 +213,14 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                         var payload = new Dictionary<string, object?>();
                         for (int i = 0; i < activeMappings.Count; i++)
                             payload[activeMappings[i].TargetColName] = values[i];
+
+                        foreach (var failure in RuleEvaluator.ApplyRules(rules, fieldTypes, payload, mapping.TargetEntity, nowUtc))
+                        {
+                            rowError = rowError is null
+                                ? $"Row {rowNumber}: {failure.Message}"
+                                : $"{rowError}; {failure.Message}";
+                            skipRow = true;
+                        }
 
                         importRecords.Add(new ImportRecord
                         {

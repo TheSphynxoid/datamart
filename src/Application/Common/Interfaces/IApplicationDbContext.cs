@@ -14,6 +14,8 @@ public interface IApplicationDbContext
 
     DbSet<Mapping> Mappings { get; }
 
+    DbSet<EntityValidationRule> EntityValidationRules { get; }
+
     DbSet<CustomerTransaction> CustomerTransactions { get; }
 
     DbSet<AccessLog> AccessLogs { get; }

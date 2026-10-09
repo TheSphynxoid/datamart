@@ -1,0 +1,28 @@
+<div class="rule-list">
+  <h4>
+    Active validation rules
+    @if (!loading && rules !== null) {
+      <span class="rule-count">({{ rules.length }})</span>
+    }
+  </h4>
+  @if (loading) {
+    <dx-load-indicator [visible]="true" hint="Loading rules&hellip;"></dx-load-indicator>
+  } @else if (!rules || rules.length === 0) {
+    <p><small>No active validation rules for this entity &mdash; every well-formed row imports.</small></p>
+  } @else {
+    <ul>
+      @for (rule of rules; track rule.id) {
+        <li>
+          <code>{{ formatRuleText(rule) }}</code>
+          @if (explainRuleText(rule); as gloss) {
+            <span class="rule-gloss">&mdash; {{ gloss }}</span>
+          }
+          @if (rule.message) {
+            <span class="rule-message">&mdash; {{ rule.message }}</span>
+          }
+        </li>
+      }
+    </ul>
+    <p><small>Rules are read-only here; manage them on the Validation rules page.</small></p>
+  }
+</div>
