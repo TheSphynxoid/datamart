@@ -1,6 +1,6 @@
 // Standalone helper that materialises the Excel-import test data sets (jeux de tests).
-// Generates real .xlsx files (ClosedXML) plus matching .csv fallbacks. Not part of the
-// solution; run from the repo root with:
+// Generates real .xlsx files (ClosedXML). Not part of the solution; run from the
+// repo root with:
 //
 //     dotnet run --project tests/FixturesGenerator
 //
@@ -9,9 +9,10 @@
 //                                                  test scenarios (kept byte-identical to
 //                                                  ClientAccountFixtures.GetRows so the
 //                                                  tests still pass).
-//   docs/sample-data/                             larger demo workbooks for live wizard
-//                                                  walkthroughs, error-rejection showcase,
-//                                                  multi-sheet selection, etc.
+//   docs/sample-data/                             jury-facing French workbooks (.xlsx only —
+//                                                  the product rejects anything else), each
+//                                                  with a stated expected result (see the
+//                                                  folder README.md).
 
 using System.Globalization;
 using ClosedXML.Excel;
@@ -43,18 +44,22 @@ internal static class Program
     private const string TransactionSheet = "Transactions";
 
     // ----- Themed name pools ---------------------------------------------
+    // French pools: the docs/sample-data workbooks are jury-facing deliverables
+    // for a French company, so values are French (headers stay English — the
+    // wizard auto-matches on entity property names). The integration-test
+    // scenarios below use hardcoded rows and are unaffected by these pools.
     private static readonly string[] FirstNames =
     {
-        "Alice", "Bob", "Carol", "Dan", "Eve", "Frank", "Grace", "Heidi", "Ivan", "Judy",
-        "Kim", "Liam", "Mia", "Noah", "Olivia", "Paolo", "Quinn", "Rita", "Sam", "Tara",
-        "Umar", "Vera", "Walt", "Xena", "Yara", "Zane",
+        "Marie", "Jean", "Pierre", "Sophie", "Lucas", "Emma", "Hugo", "Chloé", "Nathan", "Sarah",
+        "Maxime", "Camille", "Antoine", "Manon", "Julien", "Laura", "Thomas", "Julie", "Nicolas", "Claire",
+        "François", "Isabelle", "Philippe", "Nathalie", "Karim", "Fatou", "Aïcha", "Mehdi", "Sylvie", "Alain",
     };
 
     private static readonly string[] LastNames =
     {
-        "Johnson", "Smith", "Davis", "Brown", "Wilson", "Wright", "Hopper", "Clarke",
-        "Petrov", "Reeves", "Young", "Foster", "Tanaka", "Becker", "Stein", "Ricci",
-        "Adler", "Hahn", "Cole", "Webb", "Said", "Olsen", "Pham", "Liu", "Costa", "Miller",
+        "Dupont", "Martin", "Bernard", "Dubois", "Moreau", "Laurent", "Simon", "Michel", "Lefebvre", "Leroy",
+        "Roux", "David", "Bertrand", "Morel", "Fournier", "Girard", "Bonnet", "Durand", "Fontaine", "Rousseau",
+        "Vincent", "Muller", "Faure", "André", "Mercier", "Lambert", "Benali", "Traoré", "Diallo", "Petit",
     };
 
     private static readonly string[] Cities =
@@ -65,7 +70,7 @@ internal static class Program
 
     private static readonly string?[] Notes =
     {
-        "VIP", "Watchlist", "New", "Seasonal", "Corporate", "Premier", null, null,
+        "Client prioritaire", "À surveiller", "Nouveau", "Saisonnier", "Entreprise", "Premium", null, null,
     };
 
     private static readonly string[] DateFormats = { "yyyy-MM-dd", "dd/MM/yyyy", "MM/dd/yyyy" };
@@ -92,18 +97,24 @@ internal static class Program
         WriteClientScenario(fixturesDir, Scenario.BadTypes, ClientRows.BadTypes);
         WriteClientScenario(fixturesDir, Scenario.PartialErrors, ClientRows.PartialErrors);
 
-        // 2. Demo workbooks for the live wizard walkthrough.
-        WriteClientDemo(docsDir, count: 250,  path: "client_demo_250.xlsx");
-        WriteClientDemo(docsDir, count: 2000, path: "client_demo_2000.xlsx");
-        WriteClientMultiformat(docsDir, count: 150);
-        WriteClientMultiSheet(docsDir, countPerSheet: 75);
-        WriteClientRejectedShowcase(docsDir, count: 50);
-        WriteTransactionsDemo(docsDir, count: 500);
-        WriteTransactionsMessy(docsDir, count: 200);
+        // 2. Jury-facing sample data (jeux de tests livrables): French values,
+        //    .xlsx only (the product rejects anything else), each with a stated
+        //    expected result documented in docs/sample-data/README.md.
+        WriteLivrableClients(docsDir, count: 2000, path: "comptes_clients_2000.xlsx");
+        WriteLivrableTransactions(docsDir, count: 1000, path: "transactions_1000.xlsx");
+        WriteLivrableMultiformat(docsDir, count: 150);
+        WriteLivrableMultiSheet(docsDir, countPerSheet: 75);
+        WriteLivrableRejected(docsDir);
+        WriteLivrableMessyTransactions(docsDir, count: 200);
 
-        // CSV fallbacks for the two primary demo files (one ClientAccount, one Transaction).
-        WriteClientDemoCsv(docsDir, count: 250,  path: "client_demo_250.csv");
-        WriteTransactionsCsv(docsDir, count: 500,  path: "customer_transactions_500.csv");
+        // 3. Rules demo suite (jeux de tests "regles"): deterministic transaction
+        //    rows with exact expected results under the documented demo rules
+        //    (see docs/sample-data/README.md). Idempotent like the scenarios:
+        //    never rewrite committed files (xlsx embeds timestamps → binary churn).
+        WriteRulesFile(docsDir, "regles_age_60", BuildRuleAgeRows());
+        WriteRulesFile(docsDir, "regles_genre_60", BuildRuleGenderRows());
+        WriteRulesFile(docsDir, "regles_montants_60", BuildRuleAmountRows());
+        WriteRulesFile(docsDir, "regles_mixtes_120", BuildRuleMixedRows());
 
         Console.WriteLine($"Wrote fixtures to:");
         foreach (var dir in new[] { fixturesDir, docsDir })
@@ -138,62 +149,65 @@ internal static class Program
 
     private static void WriteClientScenario(string dir, Scenario scenario, IReadOnlyList<IReadOnlyList<string?>> rows)
     {
+        // Idempotent like ClientAccountFixtures.EnsureOnDisk: never rewrite the
+        // committed files (xlsx embeds timestamps, so rewriting shows up as
+        // binary churn in git even when the content is identical).
         var baseName = $"client_{NameOf(scenario)}";
-        WriteXlsx(Path.Combine(dir, $"{baseName}.xlsx"), ClientSheet, ClientMinimalHeaders, rows);
-        WriteCsv(Path.Combine(dir, $"{baseName}.csv"), ClientMinimalHeaders, rows);
+        var xlsx = Path.Combine(dir, $"{baseName}.xlsx");
+        var csv = Path.Combine(dir, $"{baseName}.csv");
+        if (!File.Exists(xlsx))
+            WriteXlsx(xlsx, ClientSheet, ClientMinimalHeaders, rows);
+        if (!File.Exists(csv))
+            WriteCsv(csv, ClientMinimalHeaders, rows);
     }
 
     // -----------------------------------------------------------------------
-    // Demo: 250 / 2000-row ClientAccount workbook (full schema, format variety)
+    // Livrable: clean client rows. Uniform formats (ISO dates, period decimals,
+    // Oui/Non booleans) so the import succeeds out of the box with a single
+    // format setting (boolTrue=Oui, boolFalse=Non).
+    // Expected: all rows imported, 0 rejected.
     // -----------------------------------------------------------------------
-    private static void WriteClientDemo(string dir, int count, string path)
+    private static void WriteLivrableClients(string dir, int count, string path)
     {
-        var rows = GenerateClientRows(count, seed: 42, corruptionRate: 0.0);
+        var rows = GenerateClientRows(count, seed: 42, corruptionRate: 0.0,
+            accountFor: (rng, _) => FakeIban(rng));
+        foreach (var row in rows)
+            row[7] = row[7] == "Yes" ? "Oui" : "Non";
         WriteXlsx(Path.Combine(dir, path), ClientSheet, ClientHeaders, rows);
     }
 
-    private static void WriteClientDemoCsv(string dir, int count, string path)
+    /// <summary>Fictive but format-plausible French IBAN (for demo only).</summary>
+    private static string FakeIban(Random rng) =>
+        $"FR{rng.Next(10, 100)} {rng.Next(10000, 100000)} {rng.Next(10000, 100000)} " +
+        $"{rng.Next(100000000, 1000000000):D9} {rng.Next(10, 100)}";
+
+    // -----------------------------------------------------------------------
+    // Livrable: every date/decimal/boolean flavour mixed per row — exercises
+    // the format auto-detection and configuration UI.
+    // -----------------------------------------------------------------------
+    private static void WriteLivrableMultiformat(string dir, int count)
     {
-        var rows = GenerateClientRows(count, seed: 42, corruptionRate: 0.0);
-        // CSV in the simplest shape: ISO dates, period decimals, no currency symbols, bool as true/false.
-        var simpleHeaders = new[] { "AccountNumber", "ClientName", "Balance", "InterestRate", "TransactionCount", "OpenedDate", "LastActivityDate", "IsActive", "Notes" };
-        var simplified = rows.Select(r => new[]
-        {
-            r[0], r[1],
-            r[2]!.Replace("$", "").Replace("€", "").Replace("£", "").Trim(),
-            r[3]!.Replace(",", "."),
-            r[4],
-            r[5],
-            r[6],
-            r[7]!.ToLowerInvariant() switch { "yes" => "true", "no" => "false", _ => r[7]!.ToLowerInvariant() },
-            r[8] ?? string.Empty,
-        }).ToList();
-        WriteCsv(Path.Combine(dir, path), simpleHeaders, simplified);
+        var rows = GenerateClientRows(count, seed: 1337, corruptionRate: 0.0, multiformat: true,
+            accountFor: (rng, _) => FakeIban(rng));
+        WriteXlsx(Path.Combine(dir, "comptes_multiformats_150.xlsx"), ClientSheet, ClientHeaders, rows);
     }
 
     // -----------------------------------------------------------------------
-    // Demo: multiformat (every date/decimal/boolean flavour mixed per row)
+    // Livrable: two-sheet workbook — exercises the sheet selector (step 2).
     // -----------------------------------------------------------------------
-    private static void WriteClientMultiformat(string dir, int count)
+    private static void WriteLivrableMultiSheet(string dir, int countPerSheet)
     {
-        var rows = GenerateClientRows(count, seed: 1337, corruptionRate: 0.0, multiformat: true);
-        WriteXlsx(Path.Combine(dir, "client_multiformat_150.xlsx"), ClientSheet, ClientHeaders, rows);
-    }
-
-    // -----------------------------------------------------------------------
-    // Demo: multi-sheet workbook (tests sheet selection)
-    // -----------------------------------------------------------------------
-    private static void WriteClientMultiSheet(string dir, int countPerSheet)
-    {
-        var path = Path.Combine(dir, "client_multi_sheet.xlsx");
+        var path = Path.Combine(dir, "comptes_multi_feuilles.xlsx");
         using var wb = new XLWorkbook();
-        foreach (var (sheet, prefix) in new[] { ("Active", "ACT"), ("Closed", "CLS") })
+        foreach (var (sheet, seed) in new[] { ("Comptes actifs", 11), ("Comptes clôturés", 22) })
         {
             var ws = wb.Worksheets.Add(sheet);
             for (int c = 0; c < ClientHeaders.Length; c++)
                 ws.Cell(1, c + 1).Value = ClientHeaders[c];
-            var rows = GenerateClientRows(countPerSheet, seed: sheet == "Active" ? 11 : 22,
-                corruptionRate: 0.0, accountPrefix: prefix, openedYearRange: sheet == "Active" ? (2022, 2024) : (2018, 2021));
+            var rows = GenerateClientRows(countPerSheet, seed: seed,
+                corruptionRate: 0.0,
+                openedYearRange: sheet == "Comptes actifs" ? (2022, 2024) : (2018, 2021),
+                accountFor: (rng, _) => FakeIban(rng));
             for (int r = 0; r < rows.Count; r++)
                 for (int c = 0; c < ClientHeaders.Length; c++)
                     ws.Cell(r + 2, c + 1).Value = rows[r][c] ?? string.Empty;
@@ -203,56 +217,48 @@ internal static class Program
     }
 
     // -----------------------------------------------------------------------
-    // Demo: rejected-rows showcase (deliberate errors so the report has content)
+    // Livrable: deliberate errors so the import report has content.
+    // Exact composition: 40 clean + 5 missing account + 5 bad decimal +
+    // 5 bad date + 5 bad boolean = 60 rows → 40 imported, 20 rejected.
     // -----------------------------------------------------------------------
-    private static void WriteClientRejectedShowcase(string dir, int count)
+    private static void WriteLivrableRejected(string dir)
     {
-        // Higher corruption rate + dedicated error rows: ~30% rejected.
         var rows = new List<string?[]>();
         var rng = new Random(99);
 
-        // 5 deliberately-empty AccountNumber rows.
         for (int i = 0; i < 5; i++)
-            rows.Add(BuildClientRow(rng, i + 1, "ERR", forceMissingAccount: true, forceBadDecimal: false, forceBadDate: false, forceBadBool: false));
-
-        // 5 bad-decimal rows.
+            rows.Add(BuildClientRow(rng, i + 1, forceMissingAccount: true, forceBadDecimal: false, forceBadDate: false, forceBadBool: false, accountFor: (r, _) => FakeIban(r)));
         for (int i = 0; i < 5; i++)
-            rows.Add(BuildClientRow(rng, 100 + i, "ERR", forceMissingAccount: false, forceBadDecimal: true, forceBadDate: false, forceBadBool: false));
-
-        // 5 bad-date rows.
+            rows.Add(BuildClientRow(rng, 100 + i, forceMissingAccount: false, forceBadDecimal: true, forceBadDate: false, forceBadBool: false, accountFor: (r, _) => FakeIban(r)));
         for (int i = 0; i < 5; i++)
-            rows.Add(BuildClientRow(rng, 200 + i, "ERR", forceMissingAccount: false, forceBadDecimal: false, forceBadDate: true, forceBadBool: false));
-
-        // 5 bad-boolean rows.
+            rows.Add(BuildClientRow(rng, 200 + i, forceMissingAccount: false, forceBadDecimal: false, forceBadDate: true, forceBadBool: false, accountFor: (r, _) => FakeIban(r)));
         for (int i = 0; i < 5; i++)
-            rows.Add(BuildClientRow(rng, 300 + i, "ERR", forceMissingAccount: false, forceBadDecimal: false, forceBadDate: false, forceBadBool: true));
+            rows.Add(BuildClientRow(rng, 300 + i, forceMissingAccount: false, forceBadDecimal: false, forceBadDate: false, forceBadBool: true, accountFor: (r, _) => FakeIban(r)));
 
-        // Fill the rest with clean rows.
-        var clean = GenerateClientRows(count - rows.Count, seed: 1, corruptionRate: 0.0);
+        var clean = GenerateClientRows(40, seed: 1, corruptionRate: 0.0,
+            accountFor: (r, _) => FakeIban(r));
+        foreach (var row in clean)
+            row[7] = row[7] == "Yes" ? "Oui" : "Non";
         rows.AddRange(clean);
 
-        WriteXlsx(Path.Combine(dir, "client_rejected_demo.xlsx"), ClientSheet, ClientHeaders, rows);
+        WriteXlsx(Path.Combine(dir, "lignes_rejetees_demo.xlsx"), ClientSheet, ClientHeaders, rows);
     }
 
     // -----------------------------------------------------------------------
-    // Demo: 500-row CustomerTransaction workbook
+    // Livrable: 1000 clean transactions. Expected: 1000 imported, 0 rejected.
     // -----------------------------------------------------------------------
-    private static void WriteTransactionsDemo(string dir, int count)
+    private static void WriteLivrableTransactions(string dir, int count, string path)
     {
-        var rows = GenerateTransactionRows(count, seed: 7, corruptionRate: 0.0);
-        WriteXlsx(Path.Combine(dir, "customer_transactions_500.xlsx"), TransactionSheet, TransactionHeaders, rows);
-    }
-
-    private static void WriteTransactionsCsv(string dir, int count, string path)
-    {
-        var rows = GenerateTransactionRows(count, seed: 7, corruptionRate: 0.0);
-        WriteCsv(Path.Combine(dir, path), TransactionHeaders, rows);
+        var rows = GenerateLivrableTransactionRows(count, seed: 7);
+        WriteXlsx(Path.Combine(dir, path), TransactionSheet, TransactionHeaders, rows);
     }
 
     // -----------------------------------------------------------------------
-    // Demo: 200-row messy transactions (mixed EU/US dates, blanks, bad values)
+    // Livrable: transactions with mixed EU/US dates and bad values — exercises
+    // the pre-flight validation report. Exact rejected count varies by seed;
+    // the report shows the precise figure at runtime.
     // -----------------------------------------------------------------------
-    private static void WriteTransactionsMessy(string dir, int count)
+    private static void WriteLivrableMessyTransactions(string dir, int count)
     {
         var rows = new List<string?[]>();
         var rng = new Random(13);
@@ -261,31 +267,26 @@ internal static class Program
         {
             var dob = new DateTime(1965 + rng.Next(35), rng.Next(1, 13), rng.Next(1, 28));
             var txDate = new DateTime(2024, rng.Next(1, 13), rng.Next(1, 29));
-            var gender = rng.Next(2) == 0 ? "M" : "F";
-            var balance = (rng.NextDouble() * 20_000 - 10_000);
-            var amount  = (rng.NextDouble() * 4_000 - 2_000);
+            var gender = rng.Next(2) == 0 ? "H" : "F";
+            var balance = rng.NextDouble() * 20_000 - 10_000;
+            var amount  = rng.NextDouble() * 4_000 - 2_000;
 
-            // 1 in 8 rows: blank TransactionID (would only matter if it were required; it isn't,
-            // but the row still exercises the optional-field handling).
             var txId = rng.Next(8) == 0 ? null : $"TX-{1000 + i:D4}";
 
-            // 1 in 12 rows: balance written with European decimal separator.
             var balanceStr = rng.Next(12) == 0
                 ? balance.ToString("F2", CultureInfo.GetCultureInfo("fr-FR"))
                 : balance.ToString("F2", CultureInfo.InvariantCulture);
 
-            // 1 in 10 rows: EU date for TransactionDate.
             var txDateStr = rng.Next(10) == 0
                 ? txDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)
                 : txDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
-            // 1 in 15 rows: bad amount.
             var amountStr = rng.Next(15) == 0 ? "n/a" : amount.ToString("F2", CultureInfo.InvariantCulture);
 
             rows.Add(new string?[]
             {
                 txId,
-                $"CUST-{rng.Next(100, 999)}",
+                $"CLI-{rng.Next(100, 999)}",
                 dob.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 gender,
                 Cities[rng.Next(Cities.Length)],
@@ -296,7 +297,7 @@ internal static class Program
             });
         }
 
-        WriteXlsx(Path.Combine(dir, "customer_transactions_messy_200.xlsx"), TransactionSheet, TransactionHeaders, rows);
+        WriteXlsx(Path.Combine(dir, "transactions_avec_erreurs_200.xlsx"), TransactionSheet, TransactionHeaders, rows);
     }
 
     // -----------------------------------------------------------------------
@@ -308,7 +309,8 @@ internal static class Program
         double corruptionRate,
         bool multiformat = false,
         string accountPrefix = "DEMO",
-        (int from, int to)? openedYearRange = null)
+        (int from, int to)? openedYearRange = null,
+        Func<Random, int, string>? accountFor = null)
     {
         var rng = new Random(seed);
         var rows = new List<string?[]>(count);
@@ -318,7 +320,8 @@ internal static class Program
             var row = BuildClientRow(rng, i, accountPrefix,
                 forceMissingAccount: false, forceBadDecimal: false, forceBadDate: false, forceBadBool: false,
                 multiformat: multiformat,
-                openedYearRange: openedYearRange ?? (2020, 2024));
+                openedYearRange: openedYearRange ?? (2020, 2024),
+                accountFor: accountFor);
 
             if (rng.NextDouble() < corruptionRate)
             {
@@ -338,13 +341,14 @@ internal static class Program
     private static string?[] BuildClientRow(
         Random rng,
         int index,
-        string accountPrefix,
-        bool forceMissingAccount,
-        bool forceBadDecimal,
-        bool forceBadDate,
-        bool forceBadBool,
+        string accountPrefix = "DEMO",
+        bool forceMissingAccount = false,
+        bool forceBadDecimal = false,
+        bool forceBadDate = false,
+        bool forceBadBool = false,
         bool multiformat = false,
-        (int from, int to)? openedYearRange = null)
+        (int from, int to)? openedYearRange = null,
+        Func<Random, int, string>? accountFor = null)
     {
         var yearRange = openedYearRange ?? (2020, 2024);
         var balance = (rng.NextDouble() * 50_000 + 100);
@@ -377,7 +381,7 @@ internal static class Program
             : (rng.Next(2) == 0 ? "Yes" : "No");
 
         // Forced errors override
-        var accountNumber = forceMissingAccount ? "" : $"{accountPrefix}-{index:D5}";
+        var accountNumber = forceMissingAccount ? "" : (accountFor?.Invoke(rng, index) ?? $"{accountPrefix}-{index:D5}");
         if (forceBadDecimal) balanceStr = "abc";
         if (forceBadDate) opened = "not-a-date";
         if (forceBadBool) isActive = "maybe";
@@ -396,7 +400,7 @@ internal static class Program
         };
     }
 
-    private static List<string?[]> GenerateTransactionRows(int count, int seed, double corruptionRate)
+    private static List<string?[]> GenerateLivrableTransactionRows(int count, int seed)
     {
         var rng = new Random(seed);
         var rows = new List<string?[]>(count);
@@ -404,31 +408,21 @@ internal static class Program
         {
             var dob = new DateTime(1965 + rng.Next(35), rng.Next(1, 13), rng.Next(1, 28));
             var txDate = new DateTime(2024, rng.Next(1, 13), rng.Next(1, 29));
-            var balance = (rng.NextDouble() * 20_000 - 10_000);
-            var amount  = (rng.NextDouble() * 4_000 - 2_000);
+            var balance = rng.NextDouble() * 20_000 - 10_000;
+            var amount  = rng.NextDouble() * 4_000 - 2_000;
 
-            var row = new string?[]
+            rows.Add(new string?[]
             {
                 $"TX-{1000 + i:D5}",
-                $"CUST-{rng.Next(100, 999):D3}",
+                $"CLI-{rng.Next(100, 999):D3}",
                 dob.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                rng.Next(2) == 0 ? "M" : "F",
+                rng.Next(2) == 0 ? "H" : "F",
                 Cities[rng.Next(Cities.Length)],
                 balance.ToString("F2", CultureInfo.InvariantCulture),
                 txDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 $"{rng.Next(0, 24):D2}:{rng.Next(0, 60):D2}:{rng.Next(0, 60):D2}",
                 amount.ToString("F2", CultureInfo.InvariantCulture),
-            };
-
-            if (rng.NextDouble() < corruptionRate)
-            {
-                switch (rng.Next(2))
-                {
-                    case 0: row[5] = "n/a"; break;
-                    case 1: row[8] = "???";  break;
-                }
-            }
-            rows.Add(row);
+            });
         }
         return rows;
     }
@@ -497,6 +491,122 @@ internal static class Program
         if (s.IndexOfAny(new[] { ',', '"', '\n', '\r' }) >= 0)
             return "\"" + s.Replace("\"", "\"\"") + "\"";
         return s;
+    }
+
+    // -----------------------------------------------------------------------
+    // Rules demo suite: seeded clean rows + exact injected violations, so each
+    // file has a stated exact result under the demo rules (CustomerDOB <=
+    // today-18y, CustGender in [H,F], TransactionAmount >= 0). Violation rows
+    // are built clean then mutated on ONE column, so each trips exactly one
+    // rule. Minor DOBs are fixed 2012-2021 dates — underage until 2030+, and
+    // reruns reproduce the files identically.
+    // -----------------------------------------------------------------------
+    private static void WriteRulesFile(string dir, string baseName, IReadOnlyList<IReadOnlyList<string?>> rows)
+    {
+        var path = Path.Combine(dir, $"{baseName}.xlsx");
+        if (!File.Exists(path))
+            WriteXlsx(path, TransactionSheet, TransactionHeaders, rows);
+    }
+
+    private static readonly string[] MinorDobs =
+        { "2012-04-25", "2015-06-01", "2017-08-09", "2018-03-12", "2021-11-30" };
+
+    private static readonly string[] InvalidGenders = { "X", "Male", "?", "M", "Femme", "Homme" };
+
+    private static readonly string[] NegativeAmounts = { "-10.50", "-0.01", "-500.00", "-99.99", "-250.00" };
+
+    // One clean adult transaction; the index drives deterministic TX IDs.
+    private static string?[] BuildCleanRuleTransaction(Random rng, int index, string txPrefix)
+    {
+        var dob = new DateTime(rng.Next(1960, 2001), rng.Next(1, 13), rng.Next(1, 28));
+        var txDate = new DateTime(2024, rng.Next(1, 13), rng.Next(1, 28));
+        return new string?[]
+        {
+            $"{txPrefix}-{index:D4}",
+            $"CLI-{rng.Next(100, 1000):D3}",
+            dob.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            rng.Next(2) == 0 ? "H" : "F",
+            Cities[rng.Next(Cities.Length)],
+            (rng.NextDouble() * 20_000 + 100).ToString("F2", CultureInfo.InvariantCulture),
+            txDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            $"{rng.Next(0, 24):D2}:{rng.Next(0, 60):D2}:{rng.Next(0, 60):D2}",
+            (rng.NextDouble() * 5_000 + 1).ToString("F2", CultureInfo.InvariantCulture),
+        };
+    }
+
+    // 50 clean + 10 minors -> 50 imported, 10 rejected (18+ rule).
+    private static List<string?[]> BuildRuleAgeRows()
+    {
+        var rng = new Random(901);
+        var rows = new List<string?[]>();
+        for (int i = 1; i <= 50; i++)
+            rows.Add(BuildCleanRuleTransaction(rng, i, "TX-A"));
+        for (int k = 0; k < 10; k++)
+        {
+            var row = BuildCleanRuleTransaction(rng, 51 + k, "TX-A");
+            row[2] = MinorDobs[k % MinorDobs.Length];
+            rows.Add(row);
+        }
+        return rows;
+    }
+
+    // 50 clean (one lowercase 'f') + 10 invalid -> 50/10 (In [H,F] rule).
+    private static List<string?[]> BuildRuleGenderRows()
+    {
+        var rng = new Random(902);
+        var rows = new List<string?[]>();
+        for (int i = 1; i <= 50; i++)
+            rows.Add(BuildCleanRuleTransaction(rng, i, "TX-G"));
+        rows[2][3] = rows[2][3]!.ToLowerInvariant(); // minuscule -> accepte (insensible a la casse)
+        for (int k = 0; k < 10; k++)
+        {
+            var row = BuildCleanRuleTransaction(rng, 51 + k, "TX-G");
+            row[3] = InvalidGenders[k % InvalidGenders.Length];
+            rows.Add(row);
+        }
+        return rows;
+    }
+
+    // 50 clean (one 0.00 limite) + 10 negatifs -> 50/10 (>= 0 rule).
+    private static List<string?[]> BuildRuleAmountRows()
+    {
+        var rng = new Random(903);
+        var rows = new List<string?[]>();
+        for (int i = 1; i <= 50; i++)
+            rows.Add(BuildCleanRuleTransaction(rng, i, "TX-M"));
+        rows[1][8] = "0.00"; // limite incluse
+        for (int k = 0; k < 10; k++)
+        {
+            var row = BuildCleanRuleTransaction(rng, 51 + k, "TX-M");
+            row[8] = NegativeAmounts[k % NegativeAmounts.Length];
+            rows.Add(row);
+        }
+        return rows;
+    }
+
+    // 90 clean + 10 mineurs + 10 genres invalides + 10 montants negatifs
+    // -> 90 imported, 30 rejected (les trois regles cumulees).
+    private static List<string?[]> BuildRuleMixedRows()
+    {
+        var rng = new Random(904);
+        var rows = new List<string?[]>();
+        for (int i = 1; i <= 90; i++)
+            rows.Add(BuildCleanRuleTransaction(rng, i, "TX-X"));
+        for (int k = 0; k < 10; k++)
+        {
+            var minor = BuildCleanRuleTransaction(rng, 91 + k, "TX-X");
+            minor[2] = MinorDobs[k % MinorDobs.Length];
+            rows.Add(minor);
+
+            var gender = BuildCleanRuleTransaction(rng, 101 + k, "TX-X");
+            gender[3] = InvalidGenders[k % InvalidGenders.Length];
+            rows.Add(gender);
+
+            var amount = BuildCleanRuleTransaction(rng, 111 + k, "TX-X");
+            amount[8] = NegativeAmounts[k % NegativeAmounts.Length];
+            rows.Add(amount);
+        }
+        return rows;
     }
 
     // -----------------------------------------------------------------------
