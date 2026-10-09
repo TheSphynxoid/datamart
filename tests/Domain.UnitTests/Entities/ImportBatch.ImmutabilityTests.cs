@@ -1,12 +1,11 @@
 using System;
 using DataMart.Domain.Entities;
 using DataMart.Domain.Enums;
-using NUnit.Framework;
 using Shouldly;
+using Xunit;
 
 namespace DataMart.Domain.UnitTests.Entities;
 
-[TestFixture]
 public class ImportBatchImmutabilityTests
 {
     private ImportBatch CreateBatch(ImportStatus status)
@@ -33,7 +32,7 @@ public class ImportBatchImmutabilityTests
         return batch;
     }
 
-    [Test]
+    [Fact]
     public void FileName_CanBeSet_WhenStatusIsProcessing()
     {
         // Arrange
@@ -46,7 +45,7 @@ public class ImportBatchImmutabilityTests
         batch.FileName.ShouldBe("updated.xlsx");
     }
 
-    [Test]
+    [Fact]
     public void FileName_Throws_WhenStatusIsSuccess()
     {
         // Arrange
@@ -57,7 +56,7 @@ public class ImportBatchImmutabilityTests
             .Message.ShouldContain("Cannot modify audit fields after batch status is Success");
     }
 
-    [Test]
+    [Fact]
     public void FileName_Throws_WhenStatusIsFailed()
     {
         // Arrange
@@ -68,7 +67,7 @@ public class ImportBatchImmutabilityTests
             .Message.ShouldContain("Cannot modify audit fields after batch status is Failed");
     }
 
-    [Test]
+    [Fact]
     public void FileName_Throws_WhenStatusIsReverted()
     {
         // Arrange
@@ -79,7 +78,7 @@ public class ImportBatchImmutabilityTests
             .Message.ShouldContain("Cannot modify audit fields after batch status is Reverted");
     }
 
-    [Test]
+    [Fact]
     public void AffectedTable_CanBeSet_WhenStatusIsProcessing()
     {
         // Arrange
@@ -92,7 +91,7 @@ public class ImportBatchImmutabilityTests
         batch.AffectedTable.ShouldBe("NewTable");
     }
 
-    [Test]
+    [Fact]
     public void AffectedTable_Throws_WhenStatusIsSuccess()
     {
         // Arrange
@@ -103,7 +102,7 @@ public class ImportBatchImmutabilityTests
             .Message.ShouldContain("Cannot modify audit fields after batch status is Success");
     }
 
-    [Test]
+    [Fact]
     public void SourceChecksum_CanBeSet_WhenStatusIsProcessing()
     {
         // Arrange
@@ -116,7 +115,7 @@ public class ImportBatchImmutabilityTests
         batch.SourceChecksum.ShouldBe("updated");
     }
 
-    [Test]
+    [Fact]
     public void SourceChecksum_Throws_WhenStatusIsSuccess()
     {
         // Arrange
@@ -127,7 +126,7 @@ public class ImportBatchImmutabilityTests
             .Message.ShouldContain("Cannot modify audit fields after batch status is Success");
     }
 
-    [Test]
+    [Fact]
     public void Status_CanTransition_FromProcessingToSuccess()
     {
         // Arrange
@@ -140,7 +139,7 @@ public class ImportBatchImmutabilityTests
         batch.Status.ShouldBe(ImportStatus.Success);
     }
 
-    [Test]
+    [Fact]
     public void Status_CanTransition_FromProcessingToFailed()
     {
         // Arrange
@@ -153,7 +152,7 @@ public class ImportBatchImmutabilityTests
         batch.Status.ShouldBe(ImportStatus.Failed);
     }
 
-    [Test]
+    [Fact]
     public void Status_Throws_WhenChangingFromSuccess()
     {
         // Arrange
@@ -164,7 +163,7 @@ public class ImportBatchImmutabilityTests
             .Message.ShouldContain("Cannot change status from Success");
     }
 
-    [Test]
+    [Fact]
     public void Status_Throws_WhenChangingFromFailed()
     {
         // Arrange
@@ -175,7 +174,7 @@ public class ImportBatchImmutabilityTests
             .Message.ShouldContain("Cannot change status from Failed");
     }
 
-    [Test]
+    [Fact]
     public void Status_Throws_WhenChangingFromReverted()
     {
         // Arrange
@@ -186,7 +185,7 @@ public class ImportBatchImmutabilityTests
             .Message.ShouldContain("Cannot change status from Reverted");
     }
 
-    [Test]
+    [Fact]
     public void Status_Throws_InvalidTransition_FromProcessingToReverted()
     {
         // Arrange
@@ -197,7 +196,7 @@ public class ImportBatchImmutabilityTests
             .Message.ShouldContain("Invalid status transition");
     }
 
-    [Test]
+    [Fact]
     public void SetControlTotals_Throws_WhenStatusIsSuccess()
     {
         // Arrange
@@ -208,7 +207,7 @@ public class ImportBatchImmutabilityTests
             .Message.ShouldContain("Cannot modify audit fields after batch status is Success");
     }
 
-    [Test]
+    [Fact]
     public void SetExecutedBy_Throws_WhenStatusIsSuccess()
     {
         // Arrange
@@ -219,7 +218,7 @@ public class ImportBatchImmutabilityTests
             .Message.ShouldContain("Cannot modify audit fields after batch status is Success");
     }
 
-    [Test]
+    [Fact]
     public void Revert_SetsRevertedFields_AndStatus()
     {
         // Arrange
@@ -234,7 +233,7 @@ public class ImportBatchImmutabilityTests
         batch.RevertedAt.ShouldNotBeNull();
     }
 
-    [Test]
+    [Fact]
     public void Revert_Throws_WhenAlreadyReverted()
     {
         // Arrange
@@ -245,7 +244,7 @@ public class ImportBatchImmutabilityTests
             .Message.ShouldContain("already reverted");
     }
 
-    [Test]
+    [Fact]
     public void LegalHold_CanBeToggled_Anytime()
     {
         // Arrange
@@ -264,7 +263,7 @@ public class ImportBatchImmutabilityTests
         batch.LegalHold.ShouldBeFalse();
     }
 
-    [Test]
+    [Fact]
     public void RetentionExpiresAt_CanBeSet_Anytime()
     {
         // Arrange
@@ -279,10 +278,9 @@ public class ImportBatchImmutabilityTests
     }
 }
 
-[TestFixture]
 public class ImportRecordImmutabilityTests
 {
-    [Test]
+    [Fact]
     public void SourceKey_CanBeSet_Once()
     {
         // Arrange
@@ -299,7 +297,7 @@ public class ImportRecordImmutabilityTests
         record.SourceKey.ShouldBe("row-1");
     }
 
-    [Test]
+    [Fact]
     public void SourceKey_Throws_WhenSetTwice()
     {
         // Arrange
@@ -315,7 +313,7 @@ public class ImportRecordImmutabilityTests
             .Message.ShouldContain("SourceKey is immutable after insert");
     }
 
-    [Test]
+    [Fact]
     public void ImportBatchId_CanBeSet_Once()
     {
         // Arrange
@@ -332,7 +330,7 @@ public class ImportRecordImmutabilityTests
         record.ImportBatchId.ShouldBe(42);
     }
 
-    [Test]
+    [Fact]
     public void ImportBatchId_Throws_WhenSetTwice()
     {
         // Arrange

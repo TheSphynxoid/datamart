@@ -1,11 +1,11 @@
 using DataMart.Application.FunctionalTests.Fixtures;
 using DataMart.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
+using Xunit;
 
 namespace DataMart.Application.FunctionalTests;
 
-[SetUpFixture]
-public class FunctionalTestSetup
+public class FunctionalTestSetup : IAsyncLifetime
 {
     internal static IServiceScopeFactory ScopeFactory { get; private set; } = null!;
     internal static DatabaseResetter? DbResetter { get; private set; }
@@ -13,8 +13,7 @@ public class FunctionalTestSetup
     private static WebApiFactory? _factory;
     private static DistributedApplication? _app;
 
-    [OneTimeSetUp]
-    public async Task OneTimeSetUp()
+    public async Task InitializeAsync()
     {
         // Materialise the test data sets (jeux de tests) to disk on the first run so the
         // deliverable .xlsx files exist for the live demo. Idempotent: only writes missing
@@ -60,11 +59,15 @@ public class FunctionalTestSetup
         DbResetter = await DatabaseResetter.CreateAsync(connectionString);
     }
 
-    [OneTimeTearDown]
-    public async Task OneTimeTearDown()
+    public async Task DisposeAsync()
     {
         if (DbResetter is not null) await DbResetter.DisposeAsync();
         if (_app is not null) await _app.DisposeAsync();
         if (_factory is not null) await _factory.DisposeAsync();
     }
+}
+
+[CollectionDefinition("FunctionalTests")]
+public class FunctionalCollection : ICollectionFixture<FunctionalTestSetup>
+{
 }

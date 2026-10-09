@@ -4,18 +4,17 @@ using DataMart.Application.Common.Interfaces;
 using DataMart.Application.Mappings;
 using DataMart.Domain.Entities;
 using Microsoft.Extensions.Logging;
-using NUnit.Framework;
+using Xunit;
 
 namespace DataMart.Application.UnitTests.Common.Mappings;
 
-public class MappingTests
+public class MappingTests : IDisposable
 {
-    private ILoggerFactory? _loggerFactory;
-    private MapperConfiguration? _configuration;
-    private IMapper? _mapper;
+    private readonly ILoggerFactory _loggerFactory;
+    private readonly MapperConfiguration _configuration;
+    private readonly IMapper _mapper;
 
-    [OneTimeSetUp]
-    public void OneTimeSetUp()
+    public MappingTests()
     {
         // Minimal logger factory for tests
         _loggerFactory = LoggerFactory.Create(b => b.AddDebug().SetMinimumLevel(LogLevel.Debug));
@@ -27,19 +26,19 @@ public class MappingTests
         _mapper = _configuration.CreateMapper();
     }
 
-    [Test]
+    [Fact]
     public void ShouldHaveValidConfiguration()
     {
-        _configuration!.AssertConfigurationIsValid();
+        _configuration.AssertConfigurationIsValid();
     }
 
-    [Test]
-    [TestCase(typeof(Mapping), typeof(MappingDto))]
+    [Theory]
+    [InlineData(typeof(Mapping), typeof(MappingDto))]
     public void ShouldSupportMappingFromSourceToDestination(Type source, Type destination)
     {
         var instance = GetInstanceOf(source);
 
-        _mapper!.Map(instance, source, destination);
+        _mapper.Map(instance, source, destination);
     }
 
     private static object GetInstanceOf(Type type)
@@ -52,9 +51,8 @@ public class MappingTests
     }
 
 
-    [OneTimeTearDown]
-    public void OneTimeTearDown()
+    public void Dispose()
     {
-        _loggerFactory?.Dispose();
+        _loggerFactory.Dispose();
     }
 }

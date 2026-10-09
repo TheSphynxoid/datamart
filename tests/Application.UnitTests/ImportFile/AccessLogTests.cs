@@ -5,25 +5,23 @@ using DataMart.Application.Common.Interfaces;
 using DataMart.Domain.Entities;
 using DataMart.Infrastructure.Data;
 using Moq;
-using NUnit.Framework;
 using Shouldly;
+using Xunit;
 
 namespace DataMart.Application.UnitTests.ImportFile;
 
-[TestFixture]
 public class AccessLogServiceTests
 {
-    private Mock<IApplicationDbContext> _context = null!;
-    private AccessLogService _service = null!;
+    private readonly Mock<IApplicationDbContext> _context;
+    private readonly AccessLogService _service;
 
-    [SetUp]
-    public void Setup()
+    public AccessLogServiceTests()
     {
         _context = new Mock<IApplicationDbContext>();
         _service = new AccessLogService(_context.Object);
     }
 
-    [Test]
+    [Fact]
     public async Task LogAsync_CreatesAccessLogEntry()
     {
         // Arrange
@@ -47,7 +45,7 @@ public class AccessLogServiceTests
             l.BatchId == null)), Times.Once);
     }
 
-    [Test]
+    [Fact]
     public async Task LogAsync_WithMappingId_IncludesMappingId()
     {
         // Arrange
@@ -67,7 +65,7 @@ public class AccessLogServiceTests
             l.MappingId == mappingId)), Times.Once);
     }
 
-    [Test]
+    [Fact]
     public async Task LogAsync_WithBatchId_IncludesBatchId()
     {
         // Arrange
@@ -87,7 +85,7 @@ public class AccessLogServiceTests
             l.BatchId == batchId)), Times.Once);
     }
 
-    [Test]
+    [Fact]
     public async Task LogAsync_SetsTimestampToUtcNow()
     {
         // Arrange
@@ -111,10 +109,9 @@ public class AccessLogServiceTests
     }
 }
 
-[TestFixture]
 public class AccessLogEntityTests
 {
-    [Test]
+    [Fact]
     public void AccessLog_CanBeCreated_WithAllProperties()
     {
         // Arrange & Act
@@ -137,7 +134,7 @@ public class AccessLogEntityTests
         log.Timestamp.ShouldNotBe(default);
     }
 
-    [Test]
+    [Fact]
     public void AccessAction_HasExpectedValues()
     {
         Enum.GetValues<AccessAction>().ShouldBe(

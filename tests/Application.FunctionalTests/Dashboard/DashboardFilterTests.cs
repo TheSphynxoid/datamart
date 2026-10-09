@@ -11,8 +11,8 @@ using DataMart.Domain.Entities;
 using DataMart.Domain.Enums;
 using DataMart.Application.FunctionalTests.Fixtures;
 using DataMart.Application.FunctionalTests.Infrastructure;
-using NUnit.Framework;
 using Shouldly;
+using Xunit;
 
 namespace DataMart.Application.FunctionalTests.Dashboard;
 
@@ -21,26 +21,27 @@ namespace DataMart.Application.FunctionalTests.Dashboard;
 /// on batches; status on the journal). These exercise the MediatR pipeline against
 /// a real Postgres via the Aspire test host.
 /// </summary>
-[TestFixture]
-public class DashboardFilterTests
+[Collection("FunctionalTests")]
+public class DashboardFilterTests : IAsyncLifetime
 {
     private const string TargetEntity = "ClientAccounts";
     private const string MappingName = "ClientAccount_Dashboard";
 
     private int _mappingId;
 
-    [SetUp]
-    public async Task SetUp()
+    public async Task InitializeAsync()
     {
         await TestApp.ResetState();
         await TestApp.RunAsDefaultUserAsync();
         _mappingId = await CreateClientAccountMappingAsync();
     }
 
+    public Task DisposeAsync() => Task.CompletedTask;
+
     // -----------------------------------------------------------------------
     // 1. Search by file name (case-insensitive)
     // -----------------------------------------------------------------------
-    [Test]
+    [Fact]
     public async Task Search_FiltersByFileName_CaseInsensitive()
     {
         var startedA = await SendImportAsync("alpha-batch.xlsx");
@@ -56,7 +57,7 @@ public class DashboardFilterTests
         result.TotalCount.ShouldBe(2);
     }
 
-    [Test]
+    [Fact]
     public async Task Search_EmptyString_ReturnsAll()
     {
         var startedA = await SendImportAsync("one.xlsx");
@@ -69,7 +70,7 @@ public class DashboardFilterTests
         result.TotalCount.ShouldBeGreaterThanOrEqualTo(1);
     }
 
-    [Test]
+    [Fact]
     public async Task Search_NoMatch_ReturnsEmpty()
     {
         var started = await SendImportAsync("solo.xlsx");
@@ -83,7 +84,7 @@ public class DashboardFilterTests
     // -----------------------------------------------------------------------
     // 2. Status filter
     // -----------------------------------------------------------------------
-    [Test]
+    [Fact]
     public async Task Status_Filter_Success_ExcludesProcessingAndFailed()
     {
         var started = await SendImportAsync("ok.xlsx");
@@ -99,7 +100,7 @@ public class DashboardFilterTests
     // -----------------------------------------------------------------------
     // 3. Affected table filter
     // -----------------------------------------------------------------------
-    [Test]
+    [Fact]
     public async Task AffectedTable_Filter_ReturnsOnlyMatching()
     {
         var started = await SendImportAsync("ok.xlsx");
@@ -115,7 +116,7 @@ public class DashboardFilterTests
     // -----------------------------------------------------------------------
     // 4. Date range filter
     // -----------------------------------------------------------------------
-    [Test]
+    [Fact]
     public async Task DateRange_FromInFuture_ReturnsEmpty()
     {
         var started = await SendImportAsync("ok.xlsx");
@@ -126,7 +127,7 @@ public class DashboardFilterTests
         result.Items.ShouldBeEmpty();
     }
 
-    [Test]
+    [Fact]
     public async Task DateRange_FromInPast_IncludesAll()
     {
         var started = await SendImportAsync("ok.xlsx");
@@ -140,7 +141,7 @@ public class DashboardFilterTests
     // -----------------------------------------------------------------------
     // 5. Combined filters
     // -----------------------------------------------------------------------
-    [Test]
+    [Fact]
     public async Task Search_CombinedWithStatus_ReturnsIntersection()
     {
         var started = await SendImportAsync("combined.xlsx");
@@ -163,7 +164,7 @@ public class DashboardFilterTests
     // -----------------------------------------------------------------------
     // 6. Journal status filter
     // -----------------------------------------------------------------------
-    [Test]
+    [Fact]
     public async Task Journal_Status_ImportedOnly_ExcludesRejected()
     {
         // Use the partial-errors fixture (some imported, some rejected).
@@ -187,7 +188,7 @@ public class DashboardFilterTests
         (imported.TotalCount + rejected.TotalCount).ShouldBe(10);
     }
 
-    [Test]
+    [Fact]
     public async Task Journal_NoStatusFilter_ReturnsAll()
     {
         var bytes = ClientAccountFixtures.CreateXlsx(ClientAccountFixtures.Scenario.PartialErrors);
@@ -200,10 +201,10 @@ public class DashboardFilterTests
         all.TotalCount.ShouldBe(10);
     }
 
-    [Test]
-    public void Journal_UnknownBatch_ThrowsNotFound()
+    [Fact]
+    public async Task Journal_UnknownBatch_ThrowsNotFound()
     {
-        Should.ThrowAsync<Ardalis.GuardClauses.NotFoundException>(
+        await Should.ThrowAsync<Ardalis.GuardClauses.NotFoundException>(
             () => TestApp.SendAsync(new GetImportJournalQuery(99999)));
     }
 

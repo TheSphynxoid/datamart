@@ -1,13 +1,13 @@
 ﻿using DataMart.Application.Common.Exceptions;
 using FluentValidation.Results;
-using NUnit.Framework;
 using Shouldly;
+using Xunit;
 
 namespace DataMart.Application.UnitTests.Common.Exceptions;
 
 public class AppValidationExceptionTests
 {
-    [Test]
+    [Fact]
     public void DefaultConstructorCreatesAnEmptyErrorDictionary()
     {
         var actual = new AppValidationException().Errors;
@@ -15,7 +15,7 @@ public class AppValidationExceptionTests
         actual.Keys.ShouldBeEmpty();
     }
 
-    [Test]
+    [Fact]
     public void SingleValidationFailureCreatesASingleElementErrorDictionary()
     {
         var failures = new List<ValidationFailure>
@@ -29,7 +29,7 @@ public class AppValidationExceptionTests
         actual["Age"].ShouldBe(new string[] { "must be over 18" });
     }
 
-    [Test]
+    [Fact]
     public void MulitpleValidationFailureForMultiplePropertiesCreatesAMultipleElementErrorDictionaryEachWithMultipleValues()
     {
         var failures = new List<ValidationFailure>

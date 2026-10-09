@@ -14,8 +14,8 @@ using DataMart.Domain.Entities;
 using DataMart.Domain.Enums;
 using DataMart.Application.FunctionalTests.Fixtures;
 using DataMart.Application.FunctionalTests.Infrastructure;
-using NUnit.Framework;
 using Shouldly;
+using Xunit;
 
 namespace DataMart.Application.FunctionalTests.ExcelImport;
 
@@ -34,8 +34,8 @@ namespace DataMart.Application.FunctionalTests.ExcelImport;
 /// to the source Fixtures folder on the first test run (the "jeux de tests"
 /// deliverable).
 /// </summary>
-[TestFixture]
-public class ExcelImportScenariosTests
+[Collection("FunctionalTests")]
+public class ExcelImportScenariosTests : IAsyncLifetime
 {
     // GetEntityList() returns DTOs whose Name is the EF table name (e.g. "ClientAccounts"),
     // not the CLR class name. The validator's uniqueness/Must check and the import
@@ -46,8 +46,7 @@ public class ExcelImportScenariosTests
 
     private int _mappingId;
 
-    [SetUp]
-    public async Task SetUp()
+    public async Task InitializeAsync()
     {
         // Each test starts from a clean database (Respawn truncates all tables).
         await TestApp.ResetState();
@@ -55,10 +54,12 @@ public class ExcelImportScenariosTests
         _mappingId = await CreateClientAccountMappingAsync();
     }
 
+    public Task DisposeAsync() => Task.CompletedTask;
+
     // -----------------------------------------------------------------------
     // 1. Import reussi
     // -----------------------------------------------------------------------
-    [Test]
+    [Fact]
     public async Task Scenario_01_SuccessfulImport_ImportsAllRows()
     {
         var started = await SendImportAsync(ClientAccountFixtures.Scenario.Ok, EmptyFieldMode.SkipRow);
@@ -80,7 +81,7 @@ public class ExcelImportScenariosTests
     // -----------------------------------------------------------------------
     // 2. Colonne obligatoire absente
     // -----------------------------------------------------------------------
-    [Test]
+    [Fact]
     public async Task Scenario_02_MissingRequiredColumn_RejectsOnlyThoseRows()
     {
         var validation = await SendValidationAsync(ClientAccountFixtures.Scenario.MissingAccountNumber);
@@ -100,7 +101,7 @@ public class ExcelImportScenariosTests
     // -----------------------------------------------------------------------
     // 3. Type invalide
     // -----------------------------------------------------------------------
-    [Test]
+    [Fact]
     public async Task Scenario_03_InvalidType_RejectsBadRows()
     {
         var validation = await SendValidationAsync(ClientAccountFixtures.Scenario.BadTypes);
@@ -121,7 +122,7 @@ public class ExcelImportScenariosTests
     // -----------------------------------------------------------------------
     // 4. Fichier avec des erreurs partielles (the showcase scenario)
     // -----------------------------------------------------------------------
-    [Test]
+    [Fact]
     public async Task Scenario_04_PartialErrors_ImportsGoodRowsAndReportsRejections()
     {
         // 10 rows: 7 good + 2 missing required + 1 bad type. Under SkipRow the import
@@ -152,8 +153,8 @@ public class ExcelImportScenariosTests
     // -----------------------------------------------------------------------
     // 5. Mapping inexistant
     // -----------------------------------------------------------------------
-    [Test]
-    public void Scenario_05_MappingDoesNotExist_ValidationThrowsNotFound()
+    [Fact]
+    public async Task Scenario_05_MappingDoesNotExist_ValidationThrowsNotFound()
     {
         var bytes = ClientAccountFixtures.CreateXlsx(ClientAccountFixtures.Scenario.Ok);
         using var stream = new MemoryStream(bytes);
@@ -161,7 +162,7 @@ public class ExcelImportScenariosTests
         var command = new RunValidationCommand(stream, "client_ok.xlsx", MappingId: 9999, EmptyFieldMode.SkipRow, SheetIndex: null);
 
         // The handler uses Guard.Against.NotFound for the mapping lookup.
-        Should.ThrowAsync<NotFoundException>(async () => await TestApp.SendAsync(command));
+        await Should.ThrowAsync<NotFoundException>(async () => await TestApp.SendAsync(command));
     }
 
     // -----------------------------------------------------------------------

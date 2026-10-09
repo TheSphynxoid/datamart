@@ -7,21 +7,19 @@ using DataMart.Application.Mappings.Commands.CreateMapping;
 using DataMart.Application.Mappings;
 using DataMart.Domain.Entities;
 using Moq;
-using NUnit.Framework;
 using Shouldly;
+using Xunit;
 
 namespace DataMart.Application.UnitTests.Mappings.Commands.CreateMapping;
 
-[TestFixture]
 public class CreateMappingHandlerTests
 {
-    private Mock<IApplicationDbContext> _context = null!;
-    private Mock<IUser> _user = null!;
-    private CreateMappingCommandHandler _handler = null!;
+    private readonly Mock<IApplicationDbContext> _context;
+    private readonly Mock<IUser> _user;
+    private readonly CreateMappingCommandHandler _handler;
     private int _nextId = 1;
 
-    [SetUp]
-    public void Setup()
+    public CreateMappingHandlerTests()
     {
         _context = new Mock<IApplicationDbContext>();
         _user = new Mock<IUser>();
@@ -29,7 +27,7 @@ public class CreateMappingHandlerTests
         _nextId = 1;
     }
 
-    [Test]
+    [Fact]
     public async Task Handle_ValidCommand_CreatesMappingWithCreatedBy()
     {
         // Arrange
@@ -59,7 +57,7 @@ public class CreateMappingHandlerTests
             m.CreatedBy == "user-123")), Times.Once);
     }
 
-    [Test]
+    [Fact]
     public async Task Handle_NoUserId_UsesUnknown()
     {
         // Arrange

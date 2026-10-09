@@ -490,3 +490,11 @@ $RECYCLE.BIN/
 *.db
 *.db-shm
 *.db-wal
+
+# DataMart: local-only working notes / AI artifacts (never commit)
+.agents/
+skills-lock.json
+opencode-frontend-plan.md
+DASHBOARD_RESOURCES.md
+UNIT_TEST_PLAN.md
+docs/specs/

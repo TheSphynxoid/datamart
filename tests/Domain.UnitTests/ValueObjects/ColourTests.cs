@@ -1,13 +1,13 @@
 using DataMart.Domain.Exceptions;
 using DataMart.Domain.ValueObjects;
-using NUnit.Framework;
 using Shouldly;
+using Xunit;
 
 namespace DataMart.Domain.UnitTests.ValueObjects;
 
 public class ColourTests
 {
-    [Test]
+    [Fact]
     public void ShouldReturnCorrectColourCode()
     {
         var code = "#E05C4D";
@@ -17,7 +17,7 @@ public class ColourTests
         colour.Code.ShouldBe(code);
     }
 
-    [Test]
+    [Fact]
     public void ToStringReturnsCode()
     {
         var colour = Colour.Red;
@@ -25,7 +25,7 @@ public class ColourTests
         colour.ToString().ShouldBe(colour.Code);
     }
 
-    [Test]
+    [Fact]
     public void ShouldPerformImplicitConversionToColourCodeString()
     {
         string code = Colour.Red;
@@ -33,7 +33,7 @@ public class ColourTests
         code.ShouldBe("#E05C4D");
     }
 
-    [Test]
+    [Fact]
     public void ShouldPerformExplicitConversionGivenSupportedColourCode()
     {
         var colour = (Colour)"#E05C4D";
@@ -41,13 +41,13 @@ public class ColourTests
         colour.ShouldBe(Colour.Red);
     }
 
-    [Test]
+    [Fact]
     public void ShouldThrowUnsupportedColourExceptionGivenNotSupportedColourCode()
     {
         Should.Throw<UnsupportedColourException>(() => Colour.From("##FF33CC"));
     }
 
-    [Test]
+    [Fact]
     public void ShouldBeComparableWithOperators()
     {
         var color1 = new Colour("#E05C4D");

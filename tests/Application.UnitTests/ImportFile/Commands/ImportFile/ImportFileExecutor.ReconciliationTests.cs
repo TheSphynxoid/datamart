@@ -13,15 +13,14 @@ using DataMart.Application.EntityList.Queries.GetEntityList;
 using DataMart.Domain.Entities;
 using DataMart.Domain.Enums;
 using Moq;
-using NUnit.Framework;
 using Shouldly;
+using Xunit;
 
 namespace DataMart.Application.UnitTests.ImportFile.Commands.ImportFile;
 
-[TestFixture]
 public class ImportBatchControlTotalsTests
 {
-    [Test]
+    [Fact]
     public void SetControlTotals_StoresJson()
     {
         // Arrange
@@ -44,7 +43,7 @@ public class ImportBatchControlTotalsTests
         batch.ControlTotalsJson.ShouldBe(controlTotalsJson);
     }
 
-    [Test]
+    [Fact]
     public void ControlTotalsJson_SerializesCorrectly()
     {
         // Arrange
@@ -68,10 +67,9 @@ public class ImportBatchControlTotalsTests
     }
 }
 
-[TestFixture]
 public class ImportFileExecutorDecimalPrecisionTests
 {
-    [Test]
+    [Fact]
     public void ParseDecimal_Precision_PreservesExactValues()
     {
         // ParseDecimal moved from ImportFileExecutor to the shared ImportCellParser
@@ -96,10 +94,9 @@ public class ImportFileExecutorDecimalPrecisionTests
     }
 }
 
-[TestFixture]
 public class ImportFileExecutorColumnStatsTests
 {
-    [Test]
+    [Fact]
     public void ColumnStats_AccumulatesIntegerValues_Correctly()
     {
         // Arrange
@@ -121,7 +118,7 @@ public class ImportFileExecutorColumnStatsTests
         stats.Max.ShouldBe(20m);
     }
 
-    [Test]
+    [Fact]
     public void ColumnStats_AccumulatesDecimalValues_Correctly()
     {
         // Arrange
@@ -143,7 +140,7 @@ public class ImportFileExecutorColumnStatsTests
         stats.Max.ShouldBe(200.25m);
     }
 
-    [Test]
+    [Fact]
     public void ColumnStats_AccumulatesDateValues_Correctly()
     {
         // Arrange
@@ -171,7 +168,7 @@ public class ImportFileExecutorColumnStatsTests
         stats.Max.ShouldBeNull();
     }
 
-    [Test]
+    [Fact]
     public void ColumnStats_NullValues_AreIgnored()
     {
         // Arrange
@@ -193,7 +190,7 @@ public class ImportFileExecutorColumnStatsTests
         stats.Max.ShouldBe(200m);
     }
 
-    [Test]
+    [Fact]
     public void ColumnStats_DifferentTypes_OnlyUpdateRelevantFields()
     {
         // Arrange
