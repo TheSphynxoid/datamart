@@ -38,11 +38,16 @@ public class ImportCellParserTests
 
     [Theory]
     [InlineData("String")]
-    [InlineData("Guid")]
     [InlineData("SomethingElse")]
     public void MapType_UnknownClr_ReturnsText(string clr)
     {
         ImportCellParser.MapType(clr).ShouldBe(ImportColumnType.Text);
+    }
+
+    [Fact]
+    public void MapType_Guid_Returns_Uuid()
+    {
+        ImportCellParser.MapType("Guid").ShouldBe(ImportColumnType.Uuid);
     }
 
     [Fact]
@@ -51,6 +56,40 @@ public class ImportCellParserTests
         var mapping = new ColumnMapping();
 
         ImportCellParser.Parse(null, mapping, ImportColumnType.Decimal).ShouldBeNull();
+    }
+
+    [Fact]
+    public void Parse_GuidString_ParsesToGuid()
+    {
+        var mapping = new ColumnMapping();
+        var guid = Guid.Parse("6F9619FF-8B86-D011-B42D-00C04FC964FF");
+
+        ImportCellParser.Parse("6F9619FF-8B86-D011-B42D-00C04FC964FF", mapping, ImportColumnType.Uuid)
+            .ShouldBe(guid);
+    }
+
+    [Fact]
+    public void Parse_GuidNullish_ReturnsNull()
+    {
+        var mapping = new ColumnMapping();
+
+        ImportCellParser.Parse("-", mapping, ImportColumnType.Uuid).ShouldBeNull();
+    }
+
+    [Fact]
+    public void Parse_GuidInvalid_ThrowsValidationException()
+    {
+        var mapping = new ColumnMapping();
+
+        Should.Throw<AppValidationException>(
+            () => ImportCellParser.Parse("not-a-guid", mapping, ImportColumnType.Uuid))
+            .Message.ShouldContain("Cannot parse Guid");
+    }
+
+    [Fact]
+    public void GetDefault_Uuid_ReturnsEmptyGuid()
+    {
+        ImportCellParser.GetDefault(ImportColumnType.Uuid).ShouldBe(Guid.Empty);
     }
 
     [Fact]

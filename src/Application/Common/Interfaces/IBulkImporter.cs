@@ -10,7 +10,7 @@ public sealed class ImportRow
 {
     public object?[] Values { get; init; } = [];
 }
-public enum ImportColumnType { Integer, Text, Decimal, Date, Boolean, Timestamp, Time }
+public enum ImportColumnType { Integer, Text, Decimal, Date, Boolean, Timestamp, Time, Uuid }
 public interface IBulkImporter
 {
     Task<int> ImportAsync(string tableName, IReadOnlyList<ImportColumn> columns, IEnumerable<ImportRow> rows, int importBatchId, CancellationToken ct, Func<int, Task>? onProgress = null);

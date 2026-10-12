@@ -65,6 +65,7 @@ public class BulkImporter : IBulkImporter
     static NpgsqlDbType MapType(ImportColumnType type) => type switch
     {
         ImportColumnType.Integer => NpgsqlDbType.Integer,
+        ImportColumnType.Uuid => NpgsqlDbType.Uuid,
         ImportColumnType.Text => NpgsqlDbType.Text,
         ImportColumnType.Decimal => NpgsqlDbType.Numeric,
         ImportColumnType.Date => NpgsqlDbType.Date,

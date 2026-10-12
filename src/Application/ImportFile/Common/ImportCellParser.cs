@@ -24,6 +24,7 @@ internal static class ImportCellParser
         "Decimal" or "Double" or "Single" => ImportColumnType.Decimal,
         "Boolean" => ImportColumnType.Boolean,
         "Int32" or "Int64" or "Int16" => ImportColumnType.Integer,
+        "Guid" => ImportColumnType.Uuid,
         _ => ImportColumnType.Text,
     };
 
@@ -52,6 +53,15 @@ internal static class ImportCellParser
             string s => int.TryParse(s, CultureInfo.InvariantCulture, out var v) ? v
                        : throw new AppValidationException($"Cannot parse integer from '{s}'"),
             _ => throw new AppValidationException($"Cannot parse integer from '{cell}'")
+        },
+
+        ImportColumnType.Uuid => cell switch
+        {
+            Guid g => g,
+            string s when IsNullish(s) => null,
+            string s => Guid.TryParse(s, out var g) ? g
+                        : throw new AppValidationException($"Cannot parse Guid from '{s}'"),
+            _ => throw new AppValidationException($"Cannot parse Guid from '{cell}'")
         },
 
         ImportColumnType.Decimal => cell switch
@@ -171,6 +181,7 @@ internal static class ImportCellParser
     public static object GetDefault(ImportColumnType type) => type switch
     {
         ImportColumnType.Integer => 0,
+        ImportColumnType.Uuid => Guid.Empty,
         ImportColumnType.Decimal => decimal.Zero,
         ImportColumnType.Text => string.Empty,
         ImportColumnType.Boolean => false,
