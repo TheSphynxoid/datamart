@@ -1,6 +1,5 @@
 ﻿using DataMart.Domain.Constants;
 using DataMart.Domain.Entities;
-using DataMart.Domain.ValueObjects;
 using DataMart.Infrastructure.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;

@@ -205,8 +205,6 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                                 }
                             }
                         }
-                        // DIAG (values omitted: out-of-range when iterating past activeMappings.Count; rawCells above suffice).
-
 
                          // Row-level journal (FC-4): JSON snapshot of the mapped values plus
                         // the outcome, so the import report / a future dashboard can present it.
