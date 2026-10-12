@@ -1,0 +1,22 @@
+project:
+  type: default
+  output-dir: _render
+  render:
+    - documentation-technique.md
+    - guide-utilisation.md
+
+format:
+  typst:
+    toc: true
+    number-sections: false
+    lang: fr
+    papersize: a4
+    margin-x: 2.2cm
+    margin-y: 2.4cm
+    fontsize: 11pt
+    header-includes: |
+      // Thème par défaut : stroke: none + un seul trait sous l'en-tête.
+      // show-set : plus prioritaire que le set global du thème, donc chaque
+      // table reçoit des traits horizontaux entre les lignes (x: none = pas
+      // de barres verticales).
+      #show table: set table(stroke: (x: none, y: 0.5pt), inset: 6pt)

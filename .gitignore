@@ -498,3 +498,6 @@ opencode-frontend-plan.md
 DASHBOARD_RESOURCES.md
 UNIT_TEST_PLAN.md
 docs/specs/
+
+# Quarto render output
+docs/_render/
