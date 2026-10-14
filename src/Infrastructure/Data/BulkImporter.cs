@@ -26,8 +26,14 @@ public class BulkImporter : IBulkImporter
         CancellationToken ct,
         Func<int, Task>? onProgress = null)
     {
-        var colList = string.Join(", ", columns.Select(c => $"\"{c.DestinationColumn}\""));
-        var copyCmd = $"COPY \"{tableName}\" ({colList}) FROM STDIN BINARY";
+        // SQL identifiers (table + column names) are double-quoted; an embedded
+        // double quote must be doubled, or it breaks out of the identifier. The
+        // mapping validators already restrict these names — this is the last line
+        // of defense (defense in depth), so it must not trust them.
+        static string QuoteIdentifier(string name) => $"\"{name.Replace("\"", "\"\"")}\"";
+
+        var colList = string.Join(", ", columns.Select(c => QuoteIdentifier(c.DestinationColumn)));
+        var copyCmd = $"COPY {QuoteIdentifier(tableName)} ({colList}) FROM STDIN BINARY";
 
         await using var conn = await _dataSource.OpenConnectionAsync(ct);
 

@@ -29,6 +29,6 @@ public class GetMappingsQueryHandler : IRequestHandler<GetMappingsQuery, List<Ma
                 query = query.Where(m => m.Name.ToLower().Contains(request.Search.ToLower()));
         }
 
-        return await query.ProjectTo<MappingDto>(_mapper.ConfigurationProvider).ToListAsync();
+        return await query.ProjectTo<MappingDto>(_mapper.ConfigurationProvider).ToListAsync(cancellationToken);
     }
 }

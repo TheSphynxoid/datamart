@@ -41,7 +41,13 @@ public class UpdateMappingCommandValidator : AbstractValidator<UpdateMappingComm
         RuleForEach(v => v.Columns).ChildRules(col =>
         {
             col.RuleFor(c => c.ColumnName.Trim()).NotEmpty();
-            col.RuleFor(c => c.TargetColName.Trim()).NotEmpty(); //We can harden this to check for validity of properties.
+            // TargetColName becomes a SQL identifier in the COPY statement: allow only
+            // plain C#-style identifiers, so nothing crafted client-side can alter the
+            // statement's structure. (BulkImporter additionally quotes/escapes.)
+            col.RuleFor(c => c.TargetColName.Trim())
+                .NotEmpty()
+                .Matches("^[A-Za-z_][A-Za-z0-9_]*$")
+                .WithMessage("Target column '{PropertyValue}' must contain only letters, digits and underscores.");
         });
     }
 }

@@ -13,7 +13,7 @@ public class ImportRecordConfiguration : IEntityTypeConfiguration<ImportRecord>
     {
         // Payload holds the JSON snapshot of a row's mapped values; no length cap needed
         // (rows are bounded), keep it as text.
-        builder.Property(t => t.ErrorMessage).HasMaxLength(2000);
+        builder.Property(t => t.ErrorMessage).HasMaxLength(ImportRecord.MaxErrorMessageLength);
         builder.Property(t => t.Status).HasConversion<int>();
     }
 }

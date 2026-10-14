@@ -142,16 +142,22 @@ public class ImportFileValidator
         }
 
         // Build a per-column import type map once (mirrors the executor's setup).
+        // Unknown target = schema drift; fail loudly instead of silently parsing
+        // the column as Text (executor does the same).
         var columnImportType = new Dictionary<string, ImportColumnType>(StringComparer.OrdinalIgnoreCase);
         foreach (var col in activeMappings)
         {
-            var clrType = fieldTypes.TryGetValue(col.TargetColName, out var t) ? t : "String";
-            columnImportType[col.ColumnName] = ImportCellParser.MapType(clrType);
+            if (!fieldTypes.TryGetValue(col.TargetColName, out var t))
+                throw new AppValidationException(
+                    $"Column '{col.TargetColName}' does not exist on entity '{mapping.TargetEntity}'.");
+            columnImportType[col.ColumnName] = ImportCellParser.MapType(t);
         }
 
         // Scan every row and build a per-row ImportRecord.
         while (reader.Read())
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (rowNumber > ImportFileCommand.MaxRows)
                 throw new AppValidationException(
                     $"File contains more than {ImportFileCommand.MaxRows:N0} data rows; validation rejected.");
@@ -218,7 +224,9 @@ public class ImportFileValidator
                 ImportBatchId = 0, // Validation does not persist; placeholder for the in-memory record.
                 SourceKey = rowNumber.ToString(),
                 Status = skipRow ? ImportRowStatus.Rejected : ImportRowStatus.Imported,
-                ErrorMessage = rowError,
+                // Same truncation as the executor so both paths report identical
+                // messages for the same row (the column is capped at 2000 in EF).
+                ErrorMessage = ImportFileExecutor.Truncate(rowError, ImportRecord.MaxErrorMessageLength),
                 Payload = JsonSerializer.Serialize(payload),
             });
 

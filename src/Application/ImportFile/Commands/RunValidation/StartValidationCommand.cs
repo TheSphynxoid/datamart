@@ -96,11 +96,24 @@ public class StartValidationCommandHandler : IRequestHandler<StartValidationComm
             throw;
         }
 
-        _store.Register(validationId, totalRows);
+        // From here the store owns the validation entry and the job queue will own
+        // the temp file after a SUCCESSFUL enqueue — so a failure in either must
+        // both delete the temp file and close the store entry (otherwise the SPA
+        // polls a validation that will never finish).
+        try
+        {
+            _store.Register(validationId, totalRows);
 
-        await _queue.EnqueueAsync(
-            new ValidationJob(validationId, tempPath, request.MappingId, request.EmptyMode, request.SheetIndex),
-            cancellationToken);
+            await _queue.EnqueueAsync(
+                new ValidationJob(validationId, tempPath, request.MappingId, request.EmptyMode, request.SheetIndex),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _store.MarkFailed(validationId, ex.Message);
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { /* best effort */ }
+            throw;
+        }
 
         return new ValidationStarted(validationId, totalRows);
     }

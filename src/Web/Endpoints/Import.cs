@@ -73,10 +73,11 @@ public class Import : IEndpointGroup
             var errors = string.Join("; ", ex.Errors.Select(e => e.ErrorMessage));
             return TypedResults.BadRequest(errors);
         }
-        catch (Exception ex)
-        {
-            return TypedResults.BadRequest(ex.Message);
-        }
+
+        // No generic `catch (Exception) → BadRequest(ex.Message)`: it leaks internal
+        // error text to the client and misclassifies server faults as 400s. App
+        // exceptions propagate to the ProblemDetailsExceptionHandler, which maps
+        // AppValidationException → 400, NotFound → 404, etc.
     }
 
     public static async Task<Results<Ok<ValidationStarted>, BadRequest<string>>> ValidateFile(
@@ -123,29 +124,19 @@ public class Import : IEndpointGroup
             var errors = string.Join("; ", ex.Errors.Select(e => e.ErrorMessage));
             return TypedResults.BadRequest(errors);
         }
-        catch (Exception ex)
-        {
-            return TypedResults.BadRequest(ex.Message);
-        }
+
+        // No generic catch → BadRequest(ex.Message): same rationale as UploadFile.
     }
 
     public static async Task<Results<Ok<ValidationStatusDto>, BadRequest<string>>> GetValidationStatus(
         ISender sender,
         Guid id)
     {
-        try
-        {
-            var status = await sender.Send(new GetValidationStatusQuery(id));
-            return TypedResults.Ok(status);
-        }
-        catch (FluentValidation.ValidationException ex)
-        {
-            return TypedResults.BadRequest(string.Join("; ", ex.Errors.Select(e => e.ErrorMessage)));
-        }
-        catch (Ardalis.GuardClauses.NotFoundException)
-        {
-            return TypedResults.BadRequest($"Validation {id} not found.");
-        }
+        // NotFoundException propagates to the ProblemDetailsExceptionHandler,
+        // which maps it to a proper 404 (an unknown validation id is a client
+        // error, not a bad request).
+        var status = await sender.Send(new GetValidationStatusQuery(id));
+        return TypedResults.Ok(status);
     }
 
     public static async Task<Ok<ImportBatchDto>> GetBatch(ISender sender, int id)

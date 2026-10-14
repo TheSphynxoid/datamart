@@ -46,38 +46,44 @@ public class ImportFileCommandHandler : IRequestHandler<ImportFileCommand, Impor
     public async Task<ImportStarted> Handle(ImportFileCommand request, CancellationToken cancellationToken)
     {
         var tempPath = Path.Combine(Path.GetTempPath(), $"datamart_{Guid.NewGuid()}.xlsx");
-        string sourceChecksum;
-        using (var fs = File.Create(tempPath))
-        {
-            await request.FileStream.CopyToAsync(fs, cancellationToken);
-        }
 
-        // Calculate SHA-256 of the saved file for audit trail (FC-1)
-        using (var sha256 = SHA256.Create())
-        using (var fs = File.OpenRead(tempPath))
-        {
-            var hash = await sha256.ComputeHashAsync(fs, cancellationToken);
-            sourceChecksum = Convert.ToHexString(hash);
-        }
-
-        var mapping = await _context.Mappings.FindAsync([request.MappingId], cancellationToken);
-
-        Guard.Against.NotFound(request.MappingId, mapping);
-
-        var activeMappings = mapping.Columns.Where(c => !string.IsNullOrWhiteSpace(c.TargetColName)).ToList();
-
-        int totalRows;
+        // Everything from writing the temp file to handing it to the queue lives in
+        // one try: the job queue owns the file only after a SUCCESSFUL enqueue, so
+        // any failure before that (bad mapping id, DB hiccup, enqueue failure) must
+        // delete the temp file here — otherwise every rejected upload orphans up to
+        // 100 MB in %TEMP%. (The executor deletes it in its own finally.)
         try
         {
+            string sourceChecksum;
+            using (var fs = File.Create(tempPath))
+            {
+                await request.FileStream.CopyToAsync(fs, cancellationToken);
+            }
+
+            // Calculate SHA-256 of the saved file for audit trail (FC-1)
+            using (var sha256 = SHA256.Create())
+            using (var fs = File.OpenRead(tempPath))
+            {
+                var hash = await sha256.ComputeHashAsync(fs, cancellationToken);
+                sourceChecksum = Convert.ToHexString(hash);
+            }
+
+            var mapping = await _context.Mappings.FindAsync([request.MappingId], cancellationToken);
+
+            Guard.Against.NotFound(request.MappingId, mapping);
+
+            var activeMappings = mapping.Columns.Where(c => !string.IsNullOrWhiteSpace(c.TargetColName)).ToList();
+
             // Validation + pre-count pass: cheap (no cell parsing), gives the
             // client an immediate 400 on bad mappings and a TotalRows for the bar.
+            int totalRows;
             using (var readStream = new FileStream(tempPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan))
             using (var reader = ExcelReaderFactory.CreateOpenXmlReader(readStream))
             {
                 ImportFileExecutor.AdvanceToSheet(reader, request.SheetIndex);
 
                 if (!reader.Read())
-                    throw new InvalidOperationException("Empty worksheet.");
+                    throw new AppValidationException("Empty worksheet.");
 
                 var excelHeaders = new string[reader.FieldCount];
                 for (int i = 0; i < reader.FieldCount; i++)
@@ -100,32 +106,45 @@ public class ImportFileCommandHandler : IRequestHandler<ImportFileCommand, Impor
                             $"File contains more than {ImportFileCommand.MaxRows:N0} data rows; upload rejected.");
                 }
             }
+
+            var batch = new ImportBatch
+            {
+                FileName = request.FileName,
+                AffectedTable = mapping.TargetEntity,
+                Status = ImportStatus.Processing,
+                TotalRows = totalRows,
+                SourceChecksum = sourceChecksum
+            };
+
+            batch.SetExecutedBy(_user.Id ?? "unknown");
+
+            _context.ImportBatches.Add(batch);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            await _queue.EnqueueAsync(
+                new ImportJob(tempPath, batch.Id, request.MappingId, request.EmptyMode, request.SheetIndex),
+                cancellationToken);
+
+            return new ImportStarted(batch.Id, totalRows);
         }
         catch
         {
-            if (File.Exists(tempPath))
-                File.Delete(tempPath);
+            TryDeleteTempFile(tempPath);
             throw;
         }
+    }
 
-        var batch = new ImportBatch
+    private static void TryDeleteTempFile(string tempPath)
+    {
+        try
         {
-            FileName = request.FileName,
-            AffectedTable = mapping.TargetEntity,
-            Status = ImportStatus.Processing,
-            TotalRows = totalRows,
-            SourceChecksum = sourceChecksum
-        };
-        
-        batch.SetExecutedBy(_user.Id ?? "unknown");
-
-        _context.ImportBatches.Add(batch);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        await _queue.EnqueueAsync(
-            new ImportJob(tempPath, batch.Id, request.MappingId, request.EmptyMode, request.SheetIndex),
-            cancellationToken);
-
-        return new ImportStarted(batch.Id, totalRows);
+            if (File.Exists(tempPath))
+                File.Delete(tempPath);
+        }
+        catch
+        {
+            // Best effort: the startup sweep reconciles the batch, and an orphaned
+            // temp file must not mask the original failure with a cleanup exception.
+        }
     }
 }

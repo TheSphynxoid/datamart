@@ -14,6 +14,11 @@ namespace DataMart.Domain.Entities;
 [Exclude("Internal row-level import journal / audit (FC-4)")]
 public class ImportRecord : BaseAuditableEntity
 {
+    /// <summary>Max length of <see cref="ErrorMessage"/>; must stay in sync with the
+    /// EF configuration. Writers must truncate to this so an over-long rule-failure
+    /// concatenation cannot fail the journal chunk write.</summary>
+    public const int MaxErrorMessageLength = 2000;
+
     private string? _sourceKey;
     private int? _importBatchId;
 

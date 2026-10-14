@@ -54,6 +54,7 @@ public static class DependencyInjection
 
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddTransient<IIdentityService, IdentityService>();
+        builder.Services.AddSingleton<ITransientErrorDetector, TransientErrorDetector>();
 
         builder.Services.AddSingleton<IImportJobQueue, ImportJobQueue>();
         builder.Services.AddHostedService<ImportProcessingService>();

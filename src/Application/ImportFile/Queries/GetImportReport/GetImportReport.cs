@@ -30,20 +30,27 @@ public class GetImportReportQueryHandler : IRequestHandler<GetImportReportQuery,
         var batch = await _context.ImportBatches.FindAsync([request.Id], cancellationToken);
         Guard.Against.NotFound(request.Id, batch);
 
-        var records = await _context.ImportRecords
-            .Where(r => r.ImportBatchId == request.Id)
+        // Load only what the report shows: two counts plus the rejected rows'
+        // identity/message. Materialising every journal row (with its full
+        // Payload JSON, tracked by the change tracker) just to count them is a
+        // memory bomb on exactly the file sizes this tool is built for.
+        var importedCount = await _context.ImportRecords
+            .Where(r => r.ImportBatchId == request.Id && r.Status == ImportRowStatus.Imported)
+            .CountAsync(cancellationToken);
+
+        var errors = await _context.ImportRecords
+            .Where(r => r.ImportBatchId == request.Id && r.Status == ImportRowStatus.Rejected)
+            .OrderBy(r => r.SourceKey)
+            .Select(r => new { r.SourceKey, r.ErrorMessage })
             .ToListAsync(cancellationToken);
 
-        var importedCount = records.Count(r => r.Status == ImportRowStatus.Imported);
-        var rejectedRecords = records.Where(r => r.Status == ImportRowStatus.Rejected).ToList();
-        var errors = rejectedRecords
+        var reportErrors = errors
             .Select(r => new ImportReportError(
                 int.TryParse(r.SourceKey, out var n) ? n : 0,
                 r.ErrorMessage ?? string.Empty))
-            .OrderBy(e => e.RowNumber)
             .ToList();
 
-        // The report's rapprot numbers come from the row-level journal; fall back to the
+        // The report's numbers come from the row-level journal; fall back to the
         // batch counters if no journal exists yet (e.g. import from before journaling).
         var importedRows = importedCount > 0 ? importedCount : batch.TotalRows - batch.SkippedRows;
 
@@ -52,7 +59,7 @@ public class GetImportReportQueryHandler : IRequestHandler<GetImportReportQuery,
             batch.Status,
             batch.TotalRows,
             importedRows,
-            rejectedRecords.Count,
-            errors);
+            reportErrors.Count,
+            reportErrors);
     }
 }

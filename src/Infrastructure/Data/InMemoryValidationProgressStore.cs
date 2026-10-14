@@ -23,6 +23,12 @@ public sealed class InMemoryValidationProgressStore : IValidationProgressStore
     {
         if (_entries.TryGetValue(validationId, out var snapshot))
         {
+            // Progress<int> callbacks are posted asynchronously and can land after
+            // MarkDone/MarkFailed; never let a straggler rewrite a terminal entry
+            // (it would drag the percent back from 100 and overwrite the count).
+            if (snapshot.Status is ValidationStatus.Done or ValidationStatus.Failed)
+                return;
+
             snapshot.Processed = processed;
         }
     }

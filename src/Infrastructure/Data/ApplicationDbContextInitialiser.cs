@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace DataMart.Infrastructure.Data;
@@ -28,13 +29,15 @@ public class ApplicationDbContextInitialiser
     private readonly ApplicationDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly RoleManager<IdentityRole> _roleManager;
+    private readonly IHostEnvironment _environment;
 
-    public ApplicationDbContextInitialiser(ILogger<ApplicationDbContextInitialiser> logger, ApplicationDbContext context, UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager)
+    public ApplicationDbContextInitialiser(ILogger<ApplicationDbContextInitialiser> logger, ApplicationDbContext context, UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager, IHostEnvironment environment)
     {
         _logger = logger;
         _context = context;
         _userManager = userManager;
         _roleManager = roleManager;
+        _environment = environment;
     }
 
     public async Task InitialiseAsync()
@@ -76,14 +79,20 @@ public class ApplicationDbContextInitialiser
         }
 
         // Default users
-        var administrator = new ApplicationUser { UserName = "admin@localhost", Email = "admin@localhost" };
-
-        if (_userManager.Users.All(u => u.UserName != administrator.UserName))
+        // The seeded admin account (hardcoded dev password) only exists in the
+        // Development environment — never let it reach a real deployment even if
+        // the seeding call site's environment check is ever relaxed.
+        if (_environment.IsDevelopment())
         {
-            await _userManager.CreateAsync(administrator, "Admin1!");
-            if (!string.IsNullOrWhiteSpace(administratorRole.Name))
+            var administrator = new ApplicationUser { UserName = "admin@localhost", Email = "admin@localhost" };
+
+            if (_userManager.Users.All(u => u.UserName != administrator.UserName))
             {
-                await _userManager.AddToRolesAsync(administrator, new [] { administratorRole.Name });
+                await _userManager.CreateAsync(administrator, "Admin1!");
+                if (!string.IsNullOrWhiteSpace(administratorRole.Name))
+                {
+                    await _userManager.AddToRolesAsync(administrator, new[] { administratorRole.Name });
+                }
             }
         }
     }

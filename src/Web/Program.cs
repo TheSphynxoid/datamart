@@ -51,10 +51,11 @@ else
 }
 
 app.UseHttpsRedirection();
-app.UseCors(static builder =>
-    builder.AllowAnyMethod()
-        .AllowAnyHeader()
-        .AllowAnyOrigin());
+
+// No CORS middleware on purpose: the SPA is same-origin with the API in every
+// environment (dev proxy routes /api to this host; production serves the SPA
+// from wwwroot). A same-origin setup needs no CORS, so any policy here would be
+// pure attack surface.
 
 app.UseAntiforgery();
 
