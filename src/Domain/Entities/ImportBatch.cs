@@ -72,6 +72,13 @@ public class ImportBatch : BaseAuditableEntity
     /// <see cref="TotalRows"/>.</summary>
     public bool JournalIncomplete { get; set; }
 
+    /// <summary>Human-readable failure motif recorded when the batch lands in
+    /// Failed (post-COPY failure, PLAYBACK abort or startup reconciliation).
+    /// Null while Processing and on Success. Failed batches have no row journal
+    /// (the journal is written only after a successful COPY), so this field is
+    /// what the wizard and the dashboard expose as the failure cause.</summary>
+    public string? FailedReason { get; set; }
+
     public ICollection<ImportRecord> Records { get; set; } = [];
 
     // Reconciliation & Audit (FC-1, FC-2)

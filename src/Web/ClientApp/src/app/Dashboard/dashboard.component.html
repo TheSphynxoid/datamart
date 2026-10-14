@@ -150,6 +150,7 @@
       <dxi-column dataField="fileName" caption="File"></dxi-column>
       <dxi-column dataField="affectedTable" caption="Target table" [width]="180"></dxi-column>
       <dxi-column dataField="status" caption="Status" [width]="120" cellTemplate="statusCell"></dxi-column>
+      <dxi-column dataField="failedReason" caption="Reason" [visible]="false"></dxi-column>
       <dxi-column dataField="totalRows" caption="Rows" [width]="90" format="#,##0"></dxi-column>
       <dxi-column dataField="processedRows" caption="Imported" [width]="100" format="#,##0"></dxi-column>
       <dxi-column dataField="skippedRows" caption="Rejected" [width]="100" format="#,##0"></dxi-column>

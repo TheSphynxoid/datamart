@@ -3141,6 +3141,7 @@ export class ImportBatchDto implements IImportBatchDto {
     journalRowsWritten!: number;
     journalIncomplete!: boolean;
     skippedRowsPreview!: string | undefined;
+    failedReason!: string | undefined;
 
     [key: string]: any;
 
@@ -3169,6 +3170,7 @@ export class ImportBatchDto implements IImportBatchDto {
             this.journalRowsWritten = _data["journalRowsWritten"];
             this.journalIncomplete = _data["journalIncomplete"];
             this.skippedRowsPreview = _data["skippedRowsPreview"];
+            this.failedReason = _data["failedReason"];
         }
     }
 
@@ -3195,6 +3197,7 @@ export class ImportBatchDto implements IImportBatchDto {
         data["journalRowsWritten"] = this.journalRowsWritten;
         data["journalIncomplete"] = this.journalIncomplete;
         data["skippedRowsPreview"] = this.skippedRowsPreview;
+        data["failedReason"] = this.failedReason;
         return data;
     }
 }
@@ -3210,6 +3213,7 @@ export interface IImportBatchDto {
     journalRowsWritten: number;
     journalIncomplete: boolean;
     skippedRowsPreview: string | undefined;
+    failedReason: string | undefined;
 
     [key: string]: any;
 }
@@ -3295,6 +3299,7 @@ export class ImportBatchListItemDto implements IImportBatchListItemDto {
     skippedRows!: number;
     journalRowsWritten!: number;
     journalIncomplete!: boolean;
+    failedReason!: string | undefined;
     executedBy!: string | undefined;
     created!: Date;
 
@@ -3324,6 +3329,7 @@ export class ImportBatchListItemDto implements IImportBatchListItemDto {
             this.skippedRows = _data["skippedRows"];
             this.journalRowsWritten = _data["journalRowsWritten"];
             this.journalIncomplete = _data["journalIncomplete"];
+            this.failedReason = _data["failedReason"];
             this.executedBy = _data["executedBy"];
             this.created = _data["created"] ? new Date(_data["created"].toString()) : undefined as any;
         }
@@ -3351,6 +3357,7 @@ export class ImportBatchListItemDto implements IImportBatchListItemDto {
         data["skippedRows"] = this.skippedRows;
         data["journalRowsWritten"] = this.journalRowsWritten;
         data["journalIncomplete"] = this.journalIncomplete;
+        data["failedReason"] = this.failedReason;
         data["executedBy"] = this.executedBy;
         data["created"] = this.created ? this.created.toISOString() : undefined as any;
         return data;
@@ -3367,6 +3374,7 @@ export interface IImportBatchListItemDto {
     skippedRows: number;
     journalRowsWritten: number;
     journalIncomplete: boolean;
+    failedReason: string | undefined;
     executedBy: string | undefined;
     created: Date;
 

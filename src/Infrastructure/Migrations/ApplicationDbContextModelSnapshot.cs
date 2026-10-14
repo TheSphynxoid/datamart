@@ -287,6 +287,9 @@ namespace DataMart.Infrastructure.Migrations
                     b.Property<string>("ExecutedBy")
                         .HasColumnType("text");
 
+                    b.Property<string>("FailedReason")
+                        .HasColumnType("text");
+
                     b.Property<string>("FileName")
                         .IsRequired()
                         .HasColumnType("text");

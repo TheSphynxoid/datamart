@@ -13,7 +13,8 @@ public record class ImportBatchDto(
     int SkippedRows,
     int JournalRowsWritten,
     bool JournalIncomplete,
-    string? SkippedRowsPreview);
+    string? SkippedRowsPreview,
+    string? FailedReason);
 
 public record class GetImportBatchQuery(int Id) : IRequest<ImportBatchDto>;
 
@@ -41,6 +42,7 @@ public class GetImportBatchQueryHandler : IRequestHandler<GetImportBatchQuery, I
             batch.SkippedRows,
             batch.JournalRowsWritten,
             batch.JournalIncomplete,
-            batch.SkippedRowsPreview);
+            batch.SkippedRowsPreview,
+            batch.FailedReason);
     }
 }

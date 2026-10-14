@@ -77,6 +77,11 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
     { label: ', (comma — 1.234,56)', value: ',' },
   ];
 
+  // ImportBatchDto.status values (mirrors DashboardComponent's named statics;
+  // the NSwag client generates the enum as plain numbers).
+  private static readonly StatusProcessing = 0;
+  private static readonly StatusSuccess = 1;
+
   protected readonly emptyFieldModes = [
     { label: 'Reject entire import', value: 0 },
     { label: 'Skip rows with empty fields', value: 1 },
@@ -95,6 +100,12 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
   });
 
   protected selectedFile = signal<File | null>(null);
+  // Draft copy of the uploaded file, mirroring draftEntity: picking a file only
+  // PREVIEWS it; the committed selectedFile (which downstream steps and the
+  // import itself read) changes on Confirm. Without this, editing a completed
+  // upload step leaves steps 2-5 "completed" against a file that is half-old,
+  // half-new until the next confirm.
+  protected draftFile = signal<File | null>(null);
   protected excelColumns = signal<string[]>([]);
   protected previewRows = signal<Record<string, unknown>[]>([]);
   protected parsing = signal(false);
@@ -304,7 +315,7 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
       case 4: {
         if (this.importing()) {
           const p = this.importProgress();
-          return p ? `${p.processedRows} of ${p.totalRows} rows` : 'Starting import&hellip;';
+          return p ? `${p.processedRows} of ${p.totalRows} rows` : 'Starting import…';
         }
         const result = this.importResult();
         if (!result) return 'Awaiting import';
@@ -349,7 +360,7 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
   }
 
   protected confirmFile(): void {
-    this.confirmStep(1, () => { });
+    this.confirmStep(1, () => this.selectedFile.set(this.draftFile()));
   }
 
   protected confirmMapping(): void {
@@ -397,7 +408,7 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
     this.importPoll.stop();
     this.importPoll = startPoller<ImportBatchDto>(
       () => this.importClient.batches2(batchId),
-      (batch) => batch.status !== 0, // 0 = Processing
+      (batch) => batch.status !== ExcelMapComponent.StatusProcessing,
       (batch) => this.importProgress.set(batch),
       (outcome) => {
         if (outcome.kind === 'error') {
@@ -412,7 +423,7 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
         }
         const batch = outcome.value;
         this.importing.set(false);
-        if (batch.status === 1) { // 1 = Success
+        if (batch.status === ExcelMapComponent.StatusSuccess) {
           this.importResult.set({
             success: true,
             batchId: batch.id,
@@ -423,9 +434,12 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
           this.verified.set(true);
           this.fetchImportReport(batch.id);
         } else {
+          // Failed batches have no row journal; the stored failure motif is
+          // the readable cause (set by the executor or the startup sweep).
+          const reason = batch.failedReason?.trim();
           this.importResult.set({
             success: false,
-            error: 'Import failed. Check server logs.',
+            error: reason ?? 'Import failed. Check server logs.',
           });
         }
       },
@@ -676,7 +690,7 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
   }
 
   protected onFileSelected(file: File): void {
-    this.selectedFile.set(file);
+    this.draftFile.set(file);
     this.excelColumns.set([]);
     this.previewRows.set([]);
     this.sheetNames.set([]);
@@ -723,7 +737,7 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
       this.resetFrom(2);
     }
     this.validateReport.set(null);
-    const file = this.selectedFile();
+    const file = this.draftFile() ?? this.selectedFile();
     if (file) {
       this.parseExcelPreview(file);
     }
@@ -848,6 +862,7 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
       case 0: this.selectedEntity.set(null); break;
       case 1:
         this.selectedFile.set(null);
+        this.draftFile.set(null);
         this.excelColumns.set([]);
         this.previewRows.set([]);
         this.sheetNames.set([]);

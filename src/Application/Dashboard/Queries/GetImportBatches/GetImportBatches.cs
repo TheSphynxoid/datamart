@@ -20,6 +20,7 @@ public record ImportBatchListItemDto(
     int SkippedRows,
     int JournalRowsWritten,
     bool JournalIncomplete,
+    string? FailedReason,
     string? ExecutedBy,
     DateTimeOffset Created);
 
@@ -91,6 +92,7 @@ public class GetImportBatchesQueryHandler : IRequestHandler<GetImportBatchesQuer
                 b.SkippedRows,
                 b.JournalRowsWritten,
                 b.JournalIncomplete,
+                b.FailedReason,
                 b.ExecutedBy,
                 b.Created))
             .ToListAsync(cancellationToken);
