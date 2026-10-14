@@ -31,14 +31,16 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
         private readonly IBulkImporter _importer;
         private readonly IApplicationDbContext _context;
         private readonly IEntitySchemaService _entitySchemaService;
+        private readonly ITransientErrorDetector _transientErrorDetector;
         private readonly TimeProvider _timeProvider;
         private readonly ILogger<ImportFileExecutor> _logger;
 
-        public ImportFileExecutor(IBulkImporter importer, IApplicationDbContext context, IEntitySchemaService entitySchemaService, TimeProvider timeProvider, ILogger<ImportFileExecutor> logger)
+        public ImportFileExecutor(IBulkImporter importer, IApplicationDbContext context, IEntitySchemaService entitySchemaService, ITransientErrorDetector transientErrorDetector, TimeProvider timeProvider, ILogger<ImportFileExecutor> logger)
         {
             _importer = importer;
             _context = context;
             _entitySchemaService = entitySchemaService;
+            _transientErrorDetector = transientErrorDetector;
             _timeProvider = timeProvider;
             _logger = logger;
         }
@@ -85,7 +87,7 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                 AdvanceToSheet(reader, job.SheetIndex);
 
                 if (!reader.Read())
-                    throw new InvalidOperationException("Empty worksheet.");
+                    throw new AppValidationException("Empty worksheet.");
 
                 var excelHeaders = new string[reader.FieldCount];
                 for (int i = 0; i < reader.FieldCount; i++)
@@ -135,8 +137,13 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
 
                 foreach (var col in activeMappings)
                 {
-                    var clrType = fieldTypes.TryGetValue(col.TargetColName, out var t) ? t : "String";
-                    var importType = ImportCellParser.MapType(clrType);
+                    // Unknown target = schema drift between the saved mapping and the
+                    // current entity. Fail loudly (both paths identically) instead of
+                    // silently writing the column as Text.
+                    if (!fieldTypes.TryGetValue(col.TargetColName, out var t))
+                        throw new AppValidationException(
+                            $"Column '{col.TargetColName}' does not exist on entity '{mapping.TargetEntity}'.");
+                    var importType = ImportCellParser.MapType(t);
                     columns.Add(new ImportColumn(col.TargetColName, importType));
                     columnStats.Add(new ColumnStats { ColumnName = col.TargetColName, Type = importType });
                 }
@@ -155,6 +162,8 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                 {
                     while (reader.Read())
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
+
                         var values = new object?[columns.Count];
                         bool skipRow = false;
                         string? rowError = null;
@@ -177,14 +186,19 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                             {
                                 rowError ??= $"Row {rowNumber}: {ex.Message}";
                                 skipRow = true;
-                                break; // Row is rejected; skip parsing the remaining columns.
+                                // Row is rejected; skip the stats/required checks for this
+                                // column but keep parsing the remaining ones, exactly like
+                                // the pre-flight validator — the payload snapshots and error
+                                // lists of both paths must stay comparable.
+                                continue;
                             }
 
-                            // Accumulate stats for reconciliation (FC-1)
+                            // Accumulate stats for reconciliation (FC-1).
+                            // UpdateStats is the single writer for Count — do not
+                            // increment it here as well (the double-count bug).
                             var stats = columnStats[i];
                             if (values[i] != null)
                             {
-                                stats.Count++;
                                 UpdateStats(stats, values[i]);
                             }
 
@@ -225,7 +239,11 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                             ImportBatchId = batch.Id,
                             SourceKey = rowNumber.ToString(),
                             Status = skipRow ? ImportRowStatus.Rejected : ImportRowStatus.Imported,
-                            ErrorMessage = rowError,
+                            // The column is capped at 2000 (EF configuration); rule
+                            // failures concatenate unbounded, so an over-long message
+                            // would fail the journal chunk write and flag the whole
+                            // batch JournalIncomplete for a cosmetic reason.
+                            ErrorMessage = Truncate(rowError, ImportRecord.MaxErrorMessageLength),
                             Payload = JsonSerializer.Serialize(payload),
                         });
 
@@ -361,6 +379,10 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
         {
             _logger.LogError(ex, "Import failed for batch {BatchId}.", batch.Id);
             batch.Status = ImportStatus.Failed;
+            // Failed batches have no row journal (the journal is written only
+            // after a successful COPY), so the failure motif is stored on the
+            // batch itself: what the wizard and the dashboard surface.
+            batch.FailedReason = _transientErrorDetector.DescribeFailure(ex);
             // Same reason as above — the batch MUST land in Failed even on shutdown.
             // Last-resort: if even the terminal save fails (e.g. DB is gone), log
             // loudly so the stale-batch sweep on next startup can take over.
@@ -399,7 +421,7 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                 await _importer.ImportAsync(tableName, columns, rows, batchId, cancellationToken, onProgress);
                 return;
             }
-            catch (Exception ex) when (IsTransient(ex) && attempt < 3)
+            catch (Exception ex) when (_transientErrorDetector.IsTransient(ex) && attempt < 3)
             {
                 var delay = baseDelay * (int)Math.Pow(2, attempt);
                 _logger.LogWarning(ex, "Transient error during import (attempt {Attempt}/{MaxRetries}), retrying in {Delay}ms | BatchId={BatchId}",
@@ -409,13 +431,8 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
         }
     }
 
-    private static bool IsTransient(Exception ex) => ex switch
-    {
-        DbException dx => dx.Message.Contains("57P01") || dx.Message.Contains("40001"), // admin_shutdown, serialization_failure
-        TimeoutException => true,
-        TaskCanceledException => true,
-        _ => false
-    };
+    internal static string? Truncate(string? value, int maxLength) =>
+        value is null || value.Length <= maxLength ? value : value[..maxLength];
 
     internal static void UpdateStats(ColumnStats stats, object? value)
     {
