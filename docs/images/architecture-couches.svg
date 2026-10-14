@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="290" viewBox="0 0 820 290" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="dep" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#4A5568"/>
+    </marker>
+  </defs>
+
+  <!-- Couches : la dépendance va de l'extérieur (Web) vers l'intérieur (Domain) -->
+  <g>
+    <rect x="20" y="42" width="160" height="110" rx="8" fill="#F4F6F9" stroke="#97A3B4" stroke-width="1.5"/>
+    <text x="100" y="76" text-anchor="middle" font-size="15" font-weight="600" fill="#1F2933">Domain</text>
+    <text x="100" y="99" text-anchor="middle" font-size="12" fill="#52606D">Entités, enums, interfaces</text>
+    <text x="100" y="117" text-anchor="middle" font-size="12" fill="#52606D">aucune dépendance externe</text>
+
+    <rect x="225" y="42" width="160" height="110" rx="8" fill="#F4F6F9" stroke="#97A3B4" stroke-width="1.5"/>
+    <text x="305" y="76" text-anchor="middle" font-size="15" font-weight="600" fill="#1F2933">Application</text>
+    <text x="305" y="99" text-anchor="middle" font-size="12" fill="#52606D">Cas d'usage CQRS, DTOs,</text>
+    <text x="305" y="117" text-anchor="middle" font-size="12" fill="#52606D">validateurs, comportements</text>
+
+    <rect x="430" y="42" width="160" height="110" rx="8" fill="#F4F6F9" stroke="#97A3B4" stroke-width="1.5"/>
+    <text x="510" y="76" text-anchor="middle" font-size="15" font-weight="600" fill="#1F2933">Infrastructure</text>
+    <text x="510" y="99" text-anchor="middle" font-size="12" fill="#52606D">EF Core, Identity,</text>
+    <text x="510" y="117" text-anchor="middle" font-size="12" fill="#52606D">BulkImporter (COPY), jobs</text>
+
+    <rect x="635" y="42" width="160" height="110" rx="8" fill="#F4F6F9" stroke="#97A3B4" stroke-width="1.5"/>
+    <text x="715" y="76" text-anchor="middle" font-size="15" font-weight="600" fill="#1F2933">Web</text>
+    <text x="715" y="99" text-anchor="middle" font-size="12" fill="#52606D">Endpoints Minimal API,</text>
+    <text x="715" y="117" text-anchor="middle" font-size="12" fill="#52606D">host SPA, antiforgery</text>
+  </g>
+
+  <!-- Flèches de dépendance, orientées vers l'intérieur -->
+  <g stroke="#4A5568" stroke-width="1.6">
+    <line x1="225" y1="97" x2="186" y2="97" marker-end="url(#dep)"/>
+    <line x1="430" y1="97" x2="391" y2="97" marker-end="url(#dep)"/>
+    <line x1="635" y1="97" x2="596" y2="97" marker-end="url(#dep)"/>
+  </g>
+
+  <!-- Projets transverses, hors chaîne de dépendances -->
+  <rect x="20" y="176" width="775" height="88" rx="8" fill="#FAFBFC" stroke="#A0AEC0" stroke-width="1" stroke-dasharray="5 4"/>
+  <text x="36" y="196" font-size="12" font-style="italic" fill="#718096">Transverse</text>
+
+  <g>
+    <rect x="44" y="204" width="225" height="44" rx="6" fill="#FFFFFF" stroke="#A0AEC0" stroke-width="1"/>
+    <text x="156" y="222" text-anchor="middle" font-size="13" font-weight="600" fill="#1F2933">AppHost</text>
+    <text x="156" y="239" text-anchor="middle" font-size="11.5" fill="#52606D">orchestration Aspire</text>
+
+    <rect x="303" y="204" width="225" height="44" rx="6" fill="#FFFFFF" stroke="#A0AEC0" stroke-width="1"/>
+    <text x="415" y="222" text-anchor="middle" font-size="13" font-weight="600" fill="#1F2933">ServiceDefaults</text>
+    <text x="415" y="239" text-anchor="middle" font-size="11.5" fill="#52606D">télémétrie partagée</text>
+
+    <rect x="562" y="204" width="225" height="44" rx="6" fill="#FFFFFF" stroke="#A0AEC0" stroke-width="1"/>
+    <text x="674" y="222" text-anchor="middle" font-size="13" font-weight="600" fill="#1F2933">Shared</text>
+    <text x="674" y="239" text-anchor="middle" font-size="11.5" fill="#52606D">constantes partagées</text>
+  </g>
+</svg>

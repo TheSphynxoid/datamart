@@ -8,7 +8,7 @@ project:
 format:
   typst:
     toc: true
-    number-sections: false
+    number-sections: true
     lang: fr
     papersize: a4
     margin-x: 2.2cm
@@ -20,3 +20,6 @@ format:
       // table reçoit des traits horizontaux entre les lignes (x: none = pas
       // de barres verticales).
       #show table: set table(stroke: (x: none, y: 0.5pt), inset: 6pt)
+
+language:
+  crossref-sec-prefix: "§"

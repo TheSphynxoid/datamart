@@ -1,8 +1,9 @@
 ---
 title: "Guide d'utilisation de DataMart"
 subtitle: "Import Excel contrôlé vers base de données : assistant en 5 étapes et tableau de bord"
-date: 2026-10-10
+date: 2026-10-14
 lang: fr
+number-sections: false
 ---
 
 Ce guide explique comment importer un fichier Excel dans la base via
@@ -113,12 +114,29 @@ invalides, 5 dates invalides, 5 booléens invalides).
 
 - Relire le résumé (entité, fichier, mapping, mode choisi, effectifs).
 - Lancer l'**import** : le fichier est envoyé au serveur puis traité en
-  tâche de fond (progression en temps réel). L'écriture est
-  **tout-ou-rien par lot** : en cas d'échec, aucune ligne n'est conservée
-  et le lot passe en `Failed` (conservé pour audit, jamais supprimé).
-- Le **rapport d'import** final donne les lignes importées / rejetées
-  avec les motifs, et chaque ligne importée reste rattachée à son lot
-  (traçabilité).
+  tâche de fond (progression périodique, rafraîchie sous la seconde).
+  Ce qui arrive en cas de problème dépend du mode choisi à l'étape 4 :
+  *Reject entire import* refuse le lot entier, *Skip rows* n'écarte que
+  les lignes fautives et écrit les bonnes. Un lot qui échoue passe en
+  `Failed` (conservé pour audit, jamais supprimé).
+- Quand des lignes ont été écrites, le **rapport d'import** final donne
+  les lignes importées / rejetées avec les motifs, et chaque ligne
+  importée reste rattachée à son lot (traçabilité). Pour un lot `Failed`,
+  ce rapport n'existe pas : c'est le motif du lot (ci-dessus) qui fait foi. Distinction à retenir : une ligne **rejetée** a un motif
+  (champ obligatoire vide, valeur illisible) et reste dans le journal ;
+  une ligne **sautée** ne s'est pas écrite pour la raison choisie à
+  l'étape 4 (*Skip rows*). Les deux lignes n'atteignent pas la table :
+  le même compteur du lot les regroupe côté affectatif.
+- Après la fin de l'import, le journal des lignes est envoyé par blocs
+  sur le serveur : pendant ce court laps de temps, le lot affiche une
+  pastille « journal en cours d'envoi ». Si l'envoi échoue, le lot est
+  marqué journal incomplet : les motifs des lignes manquantes ne sont
+  plus récupérables, le fichier source ayant été supprimé. La mécanique
+  exacte est décrite dans la [documentation technique](documentation-technique.md#sec-import).
+- **Un lot `Failed` n'a pas de journal** (il n'écrit rien, donc le
+  journal n'existe pas) : son motif est enregistré sur le lot et
+  affiché par l'assistant, et la colonne « Reason » du tableau de bord
+  (masquée par défaut) le rend lisible aussi.
 
 ![Étape 5 : résumé avant import](images/10-step5-ready.png){width=90%}
 
@@ -135,8 +153,9 @@ invalides, 5 dates invalides, 5 booléens invalides).
 - **Journal d'un lot** : cliquer un lot pour voir ses lignes une par une
   (`Importées` / `Rejetées`), avec le motif de chaque rejet. L'affichage
   des données brutes (payload) est masqué par défaut.
-- La page se rafraîchit toutes les 2 secondes tant qu'un lot est en cours ;
-  les vues filtrées ne sont jamais perturbées par ce rafraîchissement.
+- Tant qu'un lot est en cours, la page se rafraîchit périodiquement
+  (toutes les 2 secondes) ; ce n'est pas du temps réel strict, et les
+  vues filtrées ne sont pas perturbées par ce rafraîchissement.
 
 ![Tableau de bord après un import](images/12-dashboard-after.png){width=90%}
 
@@ -155,8 +174,8 @@ remplissage est portée par le mapping, pas par les règles.
   le mode détaillé reste disponible pour régler chaque champ à la main.
   Après application d'un modèle, le formulaire bascule automatiquement
   en mode détaillé pour vérifier avant enregistrement.
-- Une règle se **désactive** (case Active), elle n'est jamais supprimée :
-  les rapports des lots passés restent explicables.
+- Une règle se **désactive** (case Active) et n'est jamais supprimée :
+  ainsi les rapports des lots passés restent explicables.
 - Les modifications s'appliquent aux imports **futurs** de l'entité, sans
   exception par mapping.
 
@@ -176,9 +195,9 @@ remplissage est portée par le mapping, pas par les règles.
 | Validation impossible (bouton inactif) | Aucun mapping enregistré | Enregistrer le mapping (étape 3) |
 | Import impossible (bouton inactif) | Validation pas encore lancée, ou rejets sous le mode *Reject entire import* | Valider (étape 4), corriger, ou changer de mode |
 | Un mapping du même nom existe déjà | Nom déjà pris pour cette entité | Choisir un autre nom (unicité par entité) |
-| Lot `Failed` | Erreur bloquante (ex. colonne mappée absente du fichier) | Lire le rapport, corriger, relancer |
+| Lot `Failed` | Erreur bloquante (ex. colonne mappée absente du fichier) | Lire le motif porté par le lot (assistant ou pastille « Reason »), corriger, relancer |
 | `Mapping … not found` (404) | Mapping supprimé entre-temps | Re-créer ou recharger le mapping |
-| Une règle n'est plus évaluée | Champ de l'entité disparu (dérive de schéma) | Corriger ou désactiver la règle sur la page des règles |
+| Import qui échoue bruyamment sur une règle | Champ de l'entité disparu (dérive de schéma) : la règle est incalculable et le lot est arrêté | Corriger ou désactiver la règle sur la page des règles |
 
 ## Règle d'or
 
