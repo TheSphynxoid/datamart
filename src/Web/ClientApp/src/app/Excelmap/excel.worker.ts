@@ -14,6 +14,26 @@ type WorkerScope = {
   postMessage(message: unknown, transfer?: Transferable[]): void;
 };
 
+/**
+ * Maps each non-blank header name to its ORIGINAL column index in the first
+ * row. Blank cells are skipped (they carry no name) but do not shift anything:
+ * values are later read by this original index, so a blank or merged header
+ * cell cannot push the following columns onto the wrong names. Duplicate
+ * header names: the last occurrence wins, mirroring the server-side
+ * columnIndex built by the import executor/validator.
+ *
+ * Pure and exported for tests. Returns an empty map when the row has no
+ * usable header at all.
+ */
+export function extractHeaderIndex(firstRow: unknown[]): Map<string, number> {
+  const headerIndex = new Map<string, number>();
+  firstRow.forEach((cell, i) => {
+    const h = String(cell ?? '').trim();
+    if (h.length > 0) headerIndex.set(h, i);
+  });
+  return headerIndex;
+}
+
 const ctx = self as unknown as WorkerScope;
 
 ctx.onmessage = (e: MessageEvent<WorkerInput>) => {
@@ -21,8 +41,6 @@ ctx.onmessage = (e: MessageEvent<WorkerInput>) => {
     const input = e.data;
     const buffer = input.bytes;
     const byteLength = buffer instanceof ArrayBuffer ? buffer.byteLength : (buffer as Uint8Array).byteLength;
-
-    console.debug('[excel.worker] received bytes:', byteLength, 'isArrayBuffer:', buffer instanceof ArrayBuffer);
 
     if (!buffer || byteLength === 0) {
       ctx.postMessage({ error: 'The file appears to be empty.' });
@@ -54,18 +72,21 @@ ctx.onmessage = (e: MessageEvent<WorkerInput>) => {
       return;
     }
 
-    const headers = raw[0]
-      .map(h => String(h ?? '').trim())
-      .filter(h => h.length > 0);
+    // Headers keep their ORIGINAL column index (see extractHeaderIndex): the
+    // preview must attribute every value to the same header the server's own
+    // parse will use.
+    const headerIndex = extractHeaderIndex(raw[0]);
 
-    if (headers.length === 0) {
+    if (headerIndex.size === 0) {
       ctx.postMessage({ error: 'No column headers found in the first row.' });
       return;
     }
 
+    const headers = [...headerIndex.keys()];
+
     const rows = raw.slice(1).map(row => {
       const obj: Record<string, unknown> = {};
-      headers.forEach((h, i) => { obj[h] = row[i] ?? null; });
+      headerIndex.forEach((colIdx, h) => { obj[h] = row[colIdx] ?? null; });
       return obj;
     });
 

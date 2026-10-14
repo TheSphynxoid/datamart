@@ -232,9 +232,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   protected onPageSizeChange(value: number | undefined): void {
+    // Signal writes only: the constructor's effect() refetches on any filter
+    // change — an explicit loadBatches() here would fire a duplicate request.
     this.batchesPageSize.set(value ?? 20);
     this.batchesPage.set(1);
-    this.loadBatches();
   }
 
   protected applyDatePreset(preset: { getRange: () => [Date | null, Date | null] }): void {
@@ -318,17 +319,25 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private startPoll(): void {
     if (this.pollHandle) return;
     this.pollHandle = startPoller<ImportBatchesPage>(
-      () => this.dashboardClient.batches(
-        1, // poll always returns the freshest top of the list, regardless of user's page
-        this.batchesPageSize(),
-        this.batchesStatus() ?? undefined,
-        this.batchesTable() ?? undefined,
-        this.batchesFrom() ?? undefined,
-        this.batchesTo() ?? undefined,
-        this.batchesSearch() || undefined,
-      ),
+      // The poll is a liveness check: it always fetches the unfiltered top of
+      // the list, regardless of the user's page/filters. Results are merged
+      // only when doing so cannot yank a filtered view out from under the user.
+      () => this.dashboardClient.batches(1, this.batchesPageSize(), undefined, undefined, undefined, undefined, undefined),
       () => false, // isDone driven manually from onUpdate
       (result) => {
+        const anyProcessing = (result.items ?? []).some(
+          b => b.status === DashboardComponent.StatusProcessing
+        );
+
+        // Stop deciding FIRST: when nothing is Processing the poll has no
+        // reason to run — even when filters are active. Doing this check
+        // before the merge-guard return is what prevents "polls forever
+        // while filtered".
+        if (!anyProcessing && this.pollHandle) {
+          this.pollHandle.stop();
+          this.pollHandle = null;
+        }
+
         // Only merge if the user is on page 1 and no filters are applied — otherwise
         // a poll would yank the visible list out from under them.
         if (this.batchesPage() !== 1 || this.hasActiveFilters()) return;
@@ -336,16 +345,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.batchesTotalCount.set(result.totalCount);
         this.batchesLoading.set(false);
         this.loadStatistics();
-        const anyProcessing = (result.items ?? []).some(
-          b => b.status === DashboardComponent.StatusProcessing
-        );
-        if (!anyProcessing && this.pollHandle) {
-          this.pollHandle.stop();
+      },
+      (outcome) => {
+        // The poller gave up (too many consecutive errors). Release the handle
+        // so maybeRestartPoll can re-arm it on the next user-driven refresh —
+        // leaving it set would silently disable auto-refresh forever.
+        if (outcome.kind === 'error') {
           this.pollHandle = null;
         }
       },
-      () => { /* terminal outcome: poller already stopped above or will be on destroy */ },
-      { intervalMs: 2000 }
+      { intervalMs: 2000, maxConsecutiveErrors: 15 } // ~30s of failures before giving up
     );
   }
 
@@ -437,6 +446,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private formatDate(d: Date): string {
-    return d.toISOString().slice(0, 10);
+    // Local calendar date — toISOString() would show the UTC-shifted day
+    // for users west of UTC (evening picks rendering as the next day).
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   }
 }

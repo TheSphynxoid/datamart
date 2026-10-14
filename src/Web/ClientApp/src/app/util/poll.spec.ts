@@ -96,4 +96,77 @@ describe('startPoller', () => {
     expect(updates).toEqual([]);
     expect(finishes).toEqual([]);
   }));
+
+  it('tolerates up to maxConsecutiveErrors transient failures', fakeAsync(() => {
+    const updates: number[] = [];
+    const finishes: unknown[] = [];
+    let calls = 0;
+
+    const handle = startPoller(
+      () => {
+        calls++;
+        // First two calls fail, the third succeeds.
+        return calls <= 2 ? throwError(() => new Error('transient')) : of(42);
+      },
+      () => false,
+      (n) => updates.push(n),
+      (outcome) => finishes.push(outcome),
+      { intervalMs: 100, maxConsecutiveErrors: 3 },
+    );
+
+    tick(350);
+    handle.stop();
+    discardPeriodicTasks();
+
+    expect(updates).toEqual([42]);
+    expect(finishes).toEqual([]);
+  }));
+
+  it('a success resets the consecutive-error counter', fakeAsync(() => {
+    const finishes: unknown[] = [];
+    let calls = 0;
+
+    const handle = startPoller(
+      () => {
+        calls++;
+        // Fail on every odd call: errors never accumulate consecutively.
+        return calls % 2 === 1 ? throwError(() => new Error('flaky')) : of(calls);
+      },
+      () => false,
+      () => {},
+      (outcome) => finishes.push(outcome),
+      { intervalMs: 100, maxConsecutiveErrors: 2 },
+    );
+
+    tick(550);
+    handle.stop();
+    discardPeriodicTasks();
+
+    expect(finishes).toEqual([]);
+  }));
+
+  it('stops and reports once consecutive errors reach the tolerance', fakeAsync(() => {
+    const finishes: unknown[] = [];
+    let calls = 0;
+
+    const handle = startPoller(
+      () => {
+        calls++;
+        return throwError(() => new Error(`down-${calls}`));
+      },
+      () => false,
+      () => {},
+      (outcome) => finishes.push(outcome),
+      { intervalMs: 100, maxConsecutiveErrors: 3 },
+    );
+
+    tick(350);
+    handle.stop();
+    discardPeriodicTasks();
+
+    expect(calls).toBe(3);
+    expect(finishes.length).toBe(1);
+    expect((finishes[0] as { kind: string; error: Error }).kind).toBe('error');
+    expect((finishes[0] as { kind: string; error: Error }).error.message).toBe('down-3');
+  }));
 });

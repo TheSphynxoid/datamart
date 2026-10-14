@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Ardalis.GuardClauses;
 using DataMart.Application.Common.Exceptions;
@@ -71,6 +72,15 @@ public class ExcelImportScenariosTests : IAsyncLifetime
 
         // 5 rows, all valid, all imported, 0 rejected.
         (await TestApp.CountAsync<ClientAccount>()).ShouldBe(5);
+
+        // Regression (FC-1): control totals count each non-null cell ONCE.
+        // A double-count bug (call site + UpdateStats both incrementing) made
+        // Count read 10 for 5 rows — silently wrong reconciliation numbers.
+        using var totals = JsonDocument.Parse(batch.ControlTotalsJson!);
+        totals.RootElement.GetProperty("RowCount").GetInt32().ShouldBe(5);
+        var accountNumberStats = totals.RootElement.GetProperty("ColumnStats").EnumerateArray()
+            .Single(s => s.GetProperty("Column").GetString() == "AccountNumber");
+        accountNumberStats.GetProperty("Count").GetInt64().ShouldBe(5);
 
         var report = await TestApp.SendAsync(new GetImportReportQuery(started.BatchId));
         report.ImportedRows.ShouldBe(5);

@@ -12,6 +12,14 @@ export interface PollerHandle {
 
 export interface StartPollerOptions {
   intervalMs: number;
+  /**
+   * How many consecutive failed fetches the poller tolerates before it stops
+   * and reports { kind: 'error' }. Defaults to 1: any single error is terminal
+   * (right for import/validation polling, where an error means the job is gone).
+   * Long-lived dashboards pass a higher value so one dropped request does not
+   * silently kill auto-refresh.
+   */
+  maxConsecutiveErrors?: number;
 }
 
 const noopHandle: PollerHandle = { stop: () => {} };
@@ -23,8 +31,10 @@ export function startPoller<T>(
   onFinish: (outcome: PollOutcome<T>) => void,
   options: StartPollerOptions,
 ): PollerHandle {
+  const maxConsecutiveErrors = options.maxConsecutiveErrors ?? 1;
   let stopped = false;
   let handle: number | null = null;
+  let consecutiveErrors = 0;
 
   const stop = (): void => {
     if (stopped) return;
@@ -40,6 +50,7 @@ export function startPoller<T>(
     fetch().subscribe({
       next: (value) => {
         if (stopped) return;
+        consecutiveErrors = 0;
         onUpdate(value);
         if (isDone(value)) {
           stop();
@@ -48,8 +59,13 @@ export function startPoller<T>(
       },
       error: (error) => {
         if (stopped) return;
-        stop();
-        onFinish({ kind: 'error', error });
+        consecutiveErrors++;
+        if (consecutiveErrors >= maxConsecutiveErrors) {
+          stop();
+          onFinish({ kind: 'error', error });
+        }
+        // else: transient failure — keep the interval running and let the
+        // next tick retry.
       },
     });
   };
