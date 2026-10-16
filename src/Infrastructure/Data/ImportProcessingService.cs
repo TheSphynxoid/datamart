@@ -40,7 +40,7 @@ public sealed class ImportProcessingService : BackgroundService
             using var scope = _scopeFactory.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-            // 1. Stale Processing batches → Failed.
+            // 1. Stale Processing batches -> Failed.
             var stale = await context.ImportBatches
                 .Where(b => b.Status == ImportStatus.Processing)
                 .ToListAsync(cancellationToken);
@@ -51,7 +51,7 @@ public sealed class ImportProcessingService : BackgroundService
                 batch.FailedReason = "Interrupted: the process stopped during processing (reconciled at startup).";
             }
 
-            // 2. Success batches with a partial journal → JournalIncomplete = true.
+            // 2. Success batches with a partial journal -> JournalIncomplete = true.
             // The source file is already deleted, so the missing rows cannot be
             // re-derived. The flag is the only honest audit signal we can produce.
             var partial = await context.ImportBatches

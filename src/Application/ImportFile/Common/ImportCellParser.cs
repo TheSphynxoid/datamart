@@ -124,7 +124,7 @@ internal static class ImportCellParser
 
     public static DateTime ParseDate(string s, string? dateFormat)
     {
-        // Try configured format + 2-digit year variant (dd/MM/yyyy → dd/MM/yy)
+        // Try configured format + 2-digit year variant (dd/MM/yyyy -> dd/MM/yy)
         if (!string.IsNullOrEmpty(dateFormat))
         {
             var formats = new[] { dateFormat!, dateFormat!.Replace("yyyy", "yy") };

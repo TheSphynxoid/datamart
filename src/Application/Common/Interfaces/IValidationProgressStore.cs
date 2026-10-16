@@ -4,7 +4,7 @@ namespace DataMart.Application.Common.Interfaces;
 
 /// <summary>
 /// Status of an async validation job. Mirrors the lifecycle
-/// (queued → running → done) without overlapping the import-side
+/// (queued -> running -> done) without overlapping the import-side
 /// <c>ImportStatus</c> enum (which is audit-trail data).
 /// </summary>
 public enum ValidationStatus

@@ -152,7 +152,7 @@
       <dxi-column dataField="status" caption="Status" [width]="120" cellTemplate="statusCell"></dxi-column>
       <dxi-column dataField="failedReason" caption="Reason" [visible]="false"></dxi-column>
       <dxi-column dataField="totalRows" caption="Rows" [width]="90" format="#,##0"></dxi-column>
-      <dxi-column dataField="processedRows" caption="Imported" [width]="100" format="#,##0"></dxi-column>
+      <dxi-column dataField="processedRows" caption="Processed" [width]="100" format="#,##0"></dxi-column>
       <dxi-column dataField="skippedRows" caption="Rejected" [width]="100" format="#,##0"></dxi-column>
       <dxi-column dataField="executedBy" caption="By" [width]="160"></dxi-column>
       <div *dxTemplate="let cell of 'statusCell'">
@@ -185,7 +185,7 @@
               <strong>{{ b.fileName }}</strong> &rarr; {{ b.affectedTable }}
               &middot; status:
               @if (statusBadge(b.status); as bb) { <span class="badge {{ bb.cls }}">{{ bb.label }}</span> }
-              &middot; total {{ b.totalRows }} &middot; imported {{ b.processedRows }} &middot; rejected {{ b.skippedRows }}
+              &middot; total {{ b.totalRows }} &middot; processed {{ b.processedRows }} &middot; rejected {{ b.skippedRows }}
             </p>
             @if (journalProgressText(b); as journalText) {
               <p class="detail-journal-progress" [class.detail-journal-incomplete]="b.journalIncomplete">

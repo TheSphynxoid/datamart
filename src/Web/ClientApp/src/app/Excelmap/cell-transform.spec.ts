@@ -109,7 +109,7 @@ describe('transformCell', () => {
     it('converts an Excel fraction-of-day number to HH:mm:ss', () => {
       // 0.5 = 12:00:00
       expect(transformCell(0.5, 'time', {})).toBe('12:00:00');
-      // 1 = 24:00:00 → wraps to 00:00:00
+      // 1 = 24:00:00 -> wraps to 00:00:00
       expect(transformCell(1, 'time', {})).toBe('00:00:00');
     });
 
@@ -125,12 +125,12 @@ describe('transformCell', () => {
 
     it('parses a US-style string ("1,234.56") with stripSymbols + period separator', () => {
       // stripSymbols=true strips the $, comma kept when separator is '.', so the
-      // string becomes "1,234.56" → replace ',' with '' → "1234.56" → 1234.56
+      // string becomes "1,234.56" -> replace ',' with '' -> "1234.56" -> 1234.56
       expect(transformCell('1,234.56', 'decimal', { decimalSeparator: '.', stripSymbols: true })).toBe(1234.56);
     });
 
     it('parses a European-style string ("1.234,56") with comma separator', () => {
-      // "1.234,56" → strip '.' → "1234,56" → replace ',' with '.' → "1234.56" → 1234.56
+      // "1.234,56" -> strip '.' -> "1234,56" -> replace ',' with '.' -> "1234.56" -> 1234.56
       expect(transformCell('1.234,56', 'decimal', { decimalSeparator: ',' })).toBe(1234.56);
     });
 

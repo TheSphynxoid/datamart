@@ -20,6 +20,9 @@ format:
       // table reçoit des traits horizontaux entre les lignes (x: none = pas
       // de barres verticales).
       #show table: set table(stroke: (x: none, y: 0.5pt), inset: 6pt)
+      // Une table ne se coupe plus entre deux pages : elle bascule entière
+      // sur la page suivante si elle n'a pas la place de finir.
+      #show table: set block(breakable: false)
 
 language:
   crossref-sec-prefix: "§"

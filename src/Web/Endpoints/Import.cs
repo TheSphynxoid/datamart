@@ -74,10 +74,10 @@ public class Import : IEndpointGroup
             return TypedResults.BadRequest(errors);
         }
 
-        // No generic `catch (Exception) → BadRequest(ex.Message)`: it leaks internal
+        // No generic `catch (Exception) -> BadRequest(ex.Message)`: it leaks internal
         // error text to the client and misclassifies server faults as 400s. App
         // exceptions propagate to the ProblemDetailsExceptionHandler, which maps
-        // AppValidationException → 400, NotFound → 404, etc.
+        // AppValidationException -> 400, NotFound -> 404, etc.
     }
 
     public static async Task<Results<Ok<ValidationStarted>, BadRequest<string>>> ValidateFile(
@@ -125,7 +125,7 @@ public class Import : IEndpointGroup
             return TypedResults.BadRequest(errors);
         }
 
-        // No generic catch → BadRequest(ex.Message): same rationale as UploadFile.
+        // No generic catch -> BadRequest(ex.Message): same rationale as UploadFile.
     }
 
     public static async Task<Results<Ok<ValidationStatusDto>, BadRequest<string>>> GetValidationStatus(

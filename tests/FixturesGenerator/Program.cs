@@ -110,7 +110,7 @@ internal static class Program
         // 3. Rules demo suite (jeux de tests "regles"): deterministic transaction
         //    rows with exact expected results under the documented demo rules
         //    (see docs/sample-data/README.md). Idempotent like the scenarios:
-        //    never rewrite committed files (xlsx embeds timestamps → binary churn).
+        //    never rewrite committed files (xlsx embeds timestamps -> binary churn).
         WriteRulesFile(docsDir, "regles_age_60", BuildRuleAgeRows());
         WriteRulesFile(docsDir, "regles_genre_60", BuildRuleGenderRows());
         WriteRulesFile(docsDir, "regles_montants_60", BuildRuleAmountRows());
@@ -219,7 +219,7 @@ internal static class Program
     // -----------------------------------------------------------------------
     // Livrable: deliberate errors so the import report has content.
     // Exact composition: 40 clean + 5 missing account + 5 bad decimal +
-    // 5 bad date + 5 bad boolean = 60 rows → 40 imported, 20 rejected.
+    // 5 bad date + 5 bad boolean = 60 rows -> 40 imported, 20 rejected.
     // -----------------------------------------------------------------------
     private static void WriteLivrableRejected(string dir)
     {

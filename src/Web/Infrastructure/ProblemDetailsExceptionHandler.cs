@@ -7,10 +7,10 @@ namespace DataMart.Web.Infrastructure;
 
 /// <summary>
 /// Converts well-known application exceptions into RFC 9110-compliant <see cref="ProblemDetails"/> responses,
-/// mapping <see cref="AppValidationException"/> → 400, <see cref="NotFoundException"/> → 404,
-/// <see cref="UnauthorizedAccessException"/> → 401, <see cref="ForbiddenAccessException"/> → 403,
+/// mapping <see cref="AppValidationException"/> -> 400, <see cref="NotFoundException"/> -> 404,
+/// <see cref="UnauthorizedAccessException"/> -> 401, <see cref="ForbiddenAccessException"/> -> 403,
 /// and antiforgery failures (thrown as <see cref="BadHttpRequestException"/> wrapping
-/// <see cref="AntiforgeryValidationException"/>) → 400 with a stable <c>Type</c> marker so the
+/// <see cref="AntiforgeryValidationException"/>) -> 400 with a stable <c>Type</c> marker so the
 /// SPA's <c>XsrfInterceptor</c> can recognise a stale token and re-prime instead of failing.
 /// Unrecognised exceptions are not handled and fall through to the default middleware.
 /// </summary>
