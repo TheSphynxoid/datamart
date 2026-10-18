@@ -8,8 +8,6 @@ lang: fr
 > Document technique du projet DataMart, outil d'import Excel vers base de
 > données destiné à une société de conseil bancaire et financière.
 
----
-
 ## Objet et contraintes métier {#sec-objet}
 
 DataMart mappe un fichier Excel (`.xlsx`) vers une table de la base de données
@@ -29,7 +27,7 @@ les priorités, dans cet ordre :
    est garantie ; le journal ligne à ligne (snapshot des valeurs) est une
    réplication après coup en best effort. Un lot `Success` peut donc garder
    un journal partiel (`JournalIncomplete`), et un lot `Failed` n'en a
-   aucun puisqu'il n'a rien persisté ([§ Import](#sec-import)). Si le journal fait
+   aucun puisqu'il n'a rien persisté ([§ Pipeline d'import](#sec-import)). Si le journal fait
    défaut, les totaux du lot restent : `TotalRows`, `SkippedRows`, aperçu
    des lignes sautées. Les lignes rejetées, elles, n'atteignent jamais la
    table cible et ne conservent leur motif détaillé que dans ce journal.
@@ -42,7 +40,7 @@ les priorités, dans cet ordre :
    porté par l'assistant ; côté serveur, un POST d'import direct n'est pas
    refusé faute de validation préalable : l'exigence est d'interface, pas d'API.
 3. **Cohérence validation/import.** Les deux chemins partagent les mêmes
-   briques d'analyse ([§ Validation](#sec-validation), [§ Règles](#sec-regles)) : un fichier validé
+   briques d'analyse ([§ Validation pré-vol (dry-run)](#sec-validation), [§ Règles de validation par entité](#sec-regles)) : un fichier validé
    propre s'importe propre, et réciproquement. Ce partage est un invariant
    de conception, pas une garantie mécanique : toute évolution devra
    continuer à faire appel au même code commun.
@@ -51,23 +49,21 @@ les priorités, dans cet ordre :
 
 | Objectif du cahier des charges | Où le document le couvre |
 |---|---|
-| Importer un fichier `.xlsx` | [§ Import](#sec-import), [§ Garde-fous](#sec-garde-fous) |
-| Détecter les feuilles et les colonnes | étape 2 (sélecteur de feuille), auto-rapprochement ([§ Mapping](#sec-mapping)) |
-| Choisir l'entité cible parmi les entités importables (extensible) | [§ Entités](#sec-entites) |
-| Configurer le mapping colonne vers champ | [§ Mapping](#sec-mapping) |
-| Enregistrer la configuration pour réutilisation | [§ Mapping](#sec-mapping) |
-| Valider avant import : types, formats, champs obligatoires, liste d'erreurs | [§ Validation](#sec-validation) |
-| Lancer l'import | [§ Import](#sec-import) |
-| Générer un rapport d'import (importées, erreurs, rejetées) | [§ Import](#sec-import), [§ Tests](#sec-tests) |
+| Importer un fichier `.xlsx` | [§ Pipeline d'import](#sec-import), [§ Configuration des garde-fous](#sec-garde-fous) |
+| Détecter les feuilles et les colonnes | étape 2 (sélecteur de feuille), auto-rapprochement ([§ Mapping et formats](#sec-mapping)) |
+| Choisir l'entité cible parmi les entités importables (extensible) | [§ Entités principales](#sec-entites) |
+| Configurer le mapping colonne vers champ | [§ Mapping et formats](#sec-mapping) |
+| Enregistrer la configuration pour réutilisation | [§ Mapping et formats](#sec-mapping) |
+| Valider avant import : types, formats, champs obligatoires, liste d'erreurs | [§ Validation pré-vol (dry-run)](#sec-validation) |
+| Lancer l'import | [§ Pipeline d'import](#sec-import) |
+| Générer un rapport d'import (importées, erreurs, rejetées) | [§ Pipeline d'import](#sec-import), [§ Tests](#sec-tests) |
 
-Livrables : code backend et frontend ([§ Stack](#sec-stack)), base de données avec migrations EF
+Livrables : code backend et frontend ([§ Stack et organisation du dépôt](#sec-stack)), base de données avec migrations EF
 Core ([§ Base de données](#sec-base-donnees)), documentation technique et guide d'utilisation, jeux de tests
 (`docs/sample-data/`), tests xUnit avec les 5 scénarios d'intégration ([§ Tests](#sec-tests)).
-Au-delà du cahier des charges : la traçabilité ([§ Objet](#sec-objet)), l'aperçu transformé,
-la détection automatique de formats ([§ Mapping](#sec-mapping)), le journal par ligne et la
-journalisation d'accès ([§ Entités](#sec-entites)), l'import asynchrone de gros fichiers ([§ Import](#sec-import)).
-
----
+Au-delà du cahier des charges : la traçabilité ([§ Objet et contraintes métier](#sec-objet)), l'aperçu transformé,
+la détection automatique de formats ([§ Mapping et formats](#sec-mapping)), le journal par ligne et la
+journalisation d'accès ([§ Entités principales](#sec-entites)), l'import asynchrone de gros fichiers ([§ Pipeline d'import](#sec-import)).
 
 ## Stack et organisation du dépôt {#sec-stack}
 
@@ -121,8 +117,6 @@ orientée vers l'intérieur.](images/architecture-couches.svg)
 - Les DTOs embarquent un profil AutoMapper imbriqué (`Mapping : Profile`),
   découvert automatiquement.
 
----
-
 ## Orchestration Aspire {#sec-aspire}
 
 `dotnet run --project src/AppHost` démarre l'application complète. Le tableau
@@ -143,19 +137,24 @@ Modèle d'application (`src/AppHost/Program.cs`) :
 La chaîne de télémétrie (logs, traces, métriques OpenTelemetry) est câblée par
 `ServiceDefaults` et visible dans le dashboard Aspire.
 
----
-
 ## Base de données {#sec-base-donnees}
 
 ### Entités principales {#sec-entites}
+
+```{=typst}
+// Table exceptionnellement catégorielle et haute : elle se coupe entre les
+// lignes, jamais au milieu d'une cellule (contenu de cellule non retirable).
+#show table: set block(breakable: true)
+#show table.cell: set block(breakable: false)
+```
 
 | Entité | Rôle |
 |---|---|
 | `ClientAccount`, `CustomerTransaction` | Entités métier cibles d'import (démo). Toute entité héritant de `BaseAuditableEntity` est **importable par défaut** ; `[Exclude]` (classe ou propriété) retire de la liste. |
 | `Mapping` / `ColumnMapping` | Configuration de mapping réutilisable : colonnes Excel → champs DB, formats (date/heure/décimal/booléen), flag `IsRequired` par colonne. `[Exclude]` (entité système). |
-| `ImportBatch` | Enregistrement de contrôle/audit par import : fichier, table cible, statut, compteurs, `SourceChecksum` (SHA-256), `ExecutedBy`, `ControlTotalsJson` (réconciliation), `LegalHold`, `RetentionExpiresAt`, champs de revert. **Immuable après statut terminal** (`Success`/`Failed`/`Reverted`) ; les setters lèvent `InvalidOperationException`. `[Exclude]`. |
+| `ImportBatch` | Enregistrement de contrôle/audit par import : fichier, table cible, statut, compteurs, `SourceChecksum` (SHA-256), `ExecutedBy`, `ControlTotalsJson` (réconciliation), `LegalHold`, `RetentionExpiresAt`, `FailedReason` (motif de l'échec d'un lot `Failed`, affiché par l'assistant), champs de revert. **Immuable après statut terminal** (`Success`/`Failed`/`Reverted`) ; les setters lèvent `InvalidOperationException`. `[Exclude]`. |
 | `ImportRecord` | Journal par ligne : `Payload` (snapshot JSON des valeurs mappées), `Status` (`Imported`/`Rejected`), `ErrorMessage`, `SourceKey`. Alimente le rapport d'import et le journal du dashboard. `[Exclude]`. |
-| `EntityValidationRule` | Règle de validation par entité (voir [§ Règles](#sec-regles)). `[Exclude]`. |
+| `EntityValidationRule` | Règle de validation par entité (voir [§ Règles de validation par entité](#sec-regles)). `[Exclude]`. |
 | `AccessLog` | Journal d'accès append-only : `UserId`, `Action` (`ViewSchema`, `CreateMapping`, `UpdateMapping`, `ExecuteImport`, `PreviewData`), `MappingId`/`BatchId`, `Timestamp`, `CorrelationId`. `[Exclude]`. |
 
 `SourceKey` et `ImportBatchId` existent sur `BaseAuditableEntity` (exclus) :
@@ -167,6 +166,10 @@ héritant (puis migration EF Core pour l'inscription au modèle). L'importabilit
 est **par défaut** : `[Exclude]` la retire, et une nouvelle entité sensible doit
 donc être exclue explicitement.
 
+```{=typst}
+#show table: set block(breakable: false)
+```
+
 ### Migrations {#sec-migrations}
 
 Schéma versionné par migrations EF Core (Code First), appliquées au démarrage
@@ -177,11 +180,11 @@ par `ApplicationDbContextInitialiser.MigrateAsync()` puis seed (rôles +
 2. `AddImportBatchJournalRowsWritten`
 3. `AddImportBatchJournalIncomplete`
 4. `AddEntityValidationRule`
+5. `AddImportBatchFailedReason`
 
 Nouvelle migration : `dotnet ef migrations add <Nom> --project src/Infrastructure`.
 Réinitialisation dev : `dotnet ef database drop` puis redémarrage (migrations + seed).
 
----
 
 ## Surface API {#sec-api}
 
@@ -204,7 +207,6 @@ Erreurs : `ProblemDetailsExceptionHandler` mappe `AppValidationException` → 40
 `ForbiddenAccessException` → 403, et les échecs antiforgery → 400 avec un
 marqueur de type stable consommé par le SPA ([§ Sécurité](#sec-securite)).
 
----
 
 ## Pipeline d'import {#sec-import}
 
@@ -261,11 +263,11 @@ via `AsDataSet()`), sans porter le fichier entier. Le traitement lui-même est
 borné par le plafond de 1 100 000 lignes, qui est le véritable garde-fou
 mémoire.
 
-La matérialisation sert aussi le mécanisme de retry : si les lignes étaient
-régénérées directement depuis le reader, une tentative suivant un échec
-transitoire du COPY repartirait d'un reader déjà en fin de fichier, et un
-lot vide finirait `Success` avec une table vide. Une source ré-itérable
-supprime ce mode de défaillance.
+Une première version régénérait les lignes directement depuis le reader ;
+après un échec transitoire du COPY, la tentative suivante repartait d'un
+reader déjà en fin de fichier, produisait zéro ligne, et le lot finissait
+`Success` avec une table vide. Matérialiser une seule fois donne au mécanisme
+de retry une source ré-itérable et supprime la cause du bug.
 
 Le COPY binaire (`COPY ... FROM STDIN BINARY`, Npgsql) s'exécute dans une
 transaction unique : un échec ne laisse rien à nettoyer ni à replacer. Un
@@ -279,12 +281,14 @@ journal ne fait pas retomber un import réussi : le lot porte alors
 `JournalIncomplete`, car les lignes manquantes ne sont plus dérivables (le
 fichier source est supprimé dès la fin du traitement). C'est une conséquence
 directe du choix transactionnel, et le dashboard l'expose comme telle (pastille
-« journal en cours d'upload »).
+« journal en cours d'envoi »).
 
 Pour un lot `Failed`, il n'y a donc ni journal ni rapport (tous deux ne sont
 produits qu'après un COPY réussi) : le motif de l'échec est porté par le lot
-lui-même (`FailedReason`, message de l'exception au moment de la faillite),
-et c'est lui que le wizard affiche à l'étape 5.
+lui-même (`FailedReason`, une phrase lisible dérivée de la classe d'échec —
+valeur incompatible avec le type de la colonne cible, violation de
+contrainte — le texte brut de l'exception restant dans les journaux
+serveur), et c'est lui que le wizard affiche à l'étape 5.
 
 Côté SPA, le POST retourne `ImportStarted(batchId)` immédiatement ; le wizard
 interroge `GET batches/{id}` toutes les 500 ms (`startPoller`) jusqu'à un statut
@@ -302,9 +306,8 @@ terminant juste après.
 Côté utilisateur, la granularité du polling (500 ms) s'ajoute à ces
 chiffres, pour une attente perçue de l'ordre de 1,3 s dans le pire cas. Le
 profil détaillé du pipeline n'a pas été relevé ; les pistes d'optimisation,
-non priorisées sans cette mesure, sont listées dans [§ Limitations](#sec-limitations).
-
----
+non priorisées sans cette mesure, sont listées au
+[§ Limitations connues et évolutions](#sec-limitations).
 
 ## Validation pré-vol (dry-run) {#sec-validation}
 
@@ -330,7 +333,6 @@ POST /api/Import/validate
 validation charge les règles actives une fois par exécution : une règle modifiée
 en cours de route ne peut pas changer le verdict à mi-fichier.
 
----
 
 ## Mapping et formats {#sec-mapping}
 
@@ -373,18 +375,17 @@ entités importables :
 - **Non appliqué par le COPY** : les convertisseurs de valeur EF, les
   valeurs par défaut posées côté client, et les colonnes calculées
   (exclues du rapprochement). Une discordance de type fait échouer le COPY
-  entier sans rien écrire (transaction unique, [§ Import](#sec-import)).
+  entier sans rien écrire (transaction unique, [§ Pipeline d'import](#sec-import)).
 - **Tailles entières et flottantes** : par analyse du format binaire, une
   cible `long`/`short`/`double` échouerait (colonnes
   `bigint`/`smallint`/`double precision` reçues avec un format en
   entier/numérique) ; ce territoire n'a pas de fixture d'essai
-  ([§ Limitations](#sec-limitations)).
+  ([§ Limitations connues et évolutions](#sec-limitations)).
 - **Fuseaux horaires** : les cibles `DateTime` sont des colonnes
   `timestamp with time zone` et la valeur naïve du fichier est envoyée
   telle quelle (le format binaire des deux types est le même), donc
   interprétée comme l'instant UTC correspondant, sans conversion de fuseau.
 
----
 
 ## Règles de validation par entité {#sec-regles}
 
@@ -401,7 +402,7 @@ permet aux tests d'épingler des dates exactes).
 - Les règles **actives** de l'entité sont combinées en ET : une ligne n'est
   importée que si elle les satisfait toutes.
 - Une cellule vide (nulle ou placeholder type `N/A`) saute la règle ; la
-  nullité stricte relève du schéma et des champs requis ([§ Mapping](#sec-mapping)).
+  nullité stricte relève du schéma et des champs requis ([§ Mapping et formats](#sec-mapping)).
 - Une règle qui référence un champ disparu du schéma (dérive de schéma) lève
   une exception et interrompt l'exécution ; il faut corriger ou désactiver la
   règle avant de relancer.
@@ -409,7 +410,6 @@ permet aux tests d'épingler des dates exactes).
   chaque échec conserve la valeur résolue du membre de droite (`ResolvedValue`),
   ce qui garde les rapports explicables même si la règle change ensuite.
 
----
 
 ## Sécurité {#sec-securite}
 
@@ -435,9 +435,9 @@ du template) : un point à trancher avec l'intégration de la banque.
 **Upload** : la validation client n'est que de l'UX ; le serveur vérifie
 indépendamment : taille (100 Mo, alignée sur Kestrel et multipart), signature
 ZIP, structure du paquet OOXML, nombre d'entrées (≤ 1 000), taille décompressée
-(≤ 600 Mo, [§ Garde-fous](#sec-garde-fous)), rejet des macros, nom de fichier régénéré (GUID),
+(≤ 600 Mo, [§ Configuration des garde-fous](#sec-garde-fous)), rejet des macros, nom de fichier régénéré (GUID),
 stockage hors webroot, traitement borné par un plafond de 1 100 000 lignes
-([§ Import](#sec-import)).
+([§ Pipeline d'import](#sec-import)).
 
 **Maker-checker (quatre yeux)** : la règle « l'auteur du mapping ne peut pas
 exécuter l'import » est implémentée mais **commentée** dans `UploadFile`
@@ -450,7 +450,6 @@ opération sensible (consultation du schéma, création/édition de mapping,
 exécution d'import, lecture de données) avec utilisateur, horodatage et
 corrélation.
 
----
 
 ## Configuration des garde-fous {#sec-garde-fous}
 
@@ -485,7 +484,6 @@ charge.
 | Cookie / en-tête antiforgery | `XSRF-TOKEN` / `RequestVerificationToken` | `AddAntiforgery`, `src/Web/Program.cs` |
 | Chaîne de connexion | PostgreSQL local | fournie par Aspire (`appsettings.json` en dev autonome) |
 
----
 
 ## Frontend (Angular) {#sec-frontend}
 
@@ -506,7 +504,6 @@ charge.
   table, dates) + pastilles de filtres, rafraîchissement auto 2 s uniquement
   hors filtres, journal par lot avec filtres statut/message.
 
----
 
 ## Tests {#sec-tests}
 
@@ -529,7 +526,6 @@ totaux : un écart entre deux runs se lit dans l'historique git.
 Les datasets de démonstration (`docs/sample-data/`, valeurs françaises, `.xlsx`
 uniquement) sont documentés avec leur résultat attendu dans le README du dossier.
 
----
 
 ## Limitations connues et évolutions {#sec-limitations}
 
@@ -546,7 +542,7 @@ de fichiers petits et fréquents.
   la fenêtre de perte est minuscule. Une file durable (Hangfire, files
   PostgreSQL) devient nécessaire si le volume ou l'exigence de continuité
   montent.
-- **Lignes et journal en mémoire** : voir [§ Import](#sec-import) ; borné par le plafond de lignes,
+- **Lignes et journal en mémoire** : voir [§ Pipeline d'import](#sec-import) ; borné par le plafond de lignes,
   et cohérent avec le volume attendu.
 - **Traitement mono-threadé** : au-delà du COPY, l'optimisation n'a pas été
   poussée ; le parse et l'évaluation des règles sont séquentiels. La
@@ -558,7 +554,7 @@ de fichiers petits et fréquents.
   garantie de retry du COPY repose sur la matérialisation des lignes (cf. le
   bug corrigé du lot vide), qu'un pipeline parallèle devrait ré-ancrer, par
   exemple en rejouant le calcul sur échec puisque la transformation est pure.
-- **Cap décompressé à 600 Mo temporaire** : voir [§ Garde-fous](#sec-garde-fous).
+- **Cap décompressé à 600 Mo temporaire** : voir [§ Configuration des garde-fous](#sec-garde-fous).
 - **Revert non exposé** : `ImportBatch.Revert()` existe dans le domaine, aucun
   endpoint ne l'appelle encore.
 - **Un seul format d'entrée** : `.xlsx`, par choix produit. Le parseur
@@ -566,7 +562,7 @@ de fichiers petits et fréquents.
 - **Territoire non testé côté COPY** : des colonnes cibles issues de
   convertisseurs EF, de type **enum**, ou de tailles `long`/`short`/`double`
   sont attendues en échec d'après l'analyse des formats binaires
-  ([§ Mapping](#sec-mapping)) et n'ont pas de fixture pour le confirmer en base.
+  ([§ Mapping et formats](#sec-mapping)) et n'ont pas de fixture pour le confirmer en base.
 - **`Uuid` partiellement testé** : le parsing `Guid` est couvert
   unitairement, mais le chemin complet vers une colonne `uuid` n'a pas
   d'essai d'intégration.
@@ -574,7 +570,7 @@ de fichiers petits et fréquents.
   dédié.
 - **Importabilité par défaut** : toute entité héritant de
   `BaseAuditableEntity` devient importable ; un ajout d'entité sensible
-  doit être exclu explicitement ([§ Entités](#sec-entites)).
+  doit être exclu explicitement ([§ Entités principales](#sec-entites)).
 
 Si la performance devenait un jour un enjeu, l'ordre des travaux devrait venir
 d'un profil réel du pipeline, qui n'a pas été relevé à ce jour ; sans cette
@@ -583,7 +579,6 @@ ici (file durable pour la continuité, parallélisation de la transformation et
 des règles, qui se heurterait au décodage séquentiel du lecteur Excel)
 diffèrent trop en coût d'ingénierie pour être priorisées à l'aveugle.
 
----
 
 *Documents liés : `docs/guide-utilisation.md` (guide utilisateur),
 `docs/sample-data/README.md` (jeux de tests).*

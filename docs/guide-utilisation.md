@@ -22,7 +22,7 @@ les légendes et explications ici sont en français.
 ## Prérequis
 
 - Être connecté à l'application. Compte de développement pré-rempli :
-  `admin@localhost`.
+  `admin@localhost` (à remplacer par l'authentification de la banque).
 
 ![Connexion](images/01-login.png){width=55%}
 
@@ -50,7 +50,7 @@ Déposer le fichier `.xlsx`. Il est analysé dans le navigateur (aperçu des
 **plusieurs feuilles**, choisir la feuille à importer dans le sélecteur,
 puis confirmer.
 
-![Étape 2 : fichier reçu, pas encore analysé](images/04-step2-upload.png){width=90%}
+![Étape 2 : panneau d'envoi avant sélection du fichier](images/04-step2-upload.png){width=90%}
 
 ![Étape 2 : aperçu des premières lignes après analyse](images/05-step2-parsed.png){width=90%}
 
@@ -122,21 +122,22 @@ invalides, 5 dates invalides, 5 booléens invalides).
 - Quand des lignes ont été écrites, le **rapport d'import** final donne
   les lignes importées / rejetées avec les motifs, et chaque ligne
   importée reste rattachée à son lot (traçabilité). Pour un lot `Failed`,
-  ce rapport n'existe pas : c'est le motif du lot (ci-dessus) qui fait foi. Distinction à retenir : une ligne **rejetée** a un motif
-  (champ obligatoire vide, valeur illisible) et reste dans le journal ;
-  une ligne **sautée** ne s'est pas écrite pour la raison choisie à
-  l'étape 4 (*Skip rows*). Les deux lignes n'atteignent pas la table :
-  le même compteur du lot les regroupe côté affectatif.
+  ce rapport n'existe pas : c'est le motif du lot (ci-dessus) qui fait foi.
+  Distinction à retenir : une ligne **rejetée** a un motif (champ
+  obligatoire vide, valeur illisible) et reste dans le journal ; une ligne
+  **sautée** ne s'est pas écrite pour la raison choisie à l'étape 4
+  (*Skip rows*). Les deux catégories n'atteignent pas la table : le
+  compteur `SkippedRows` du lot les regroupe.
 - Après la fin de l'import, le journal des lignes est envoyé par blocs
   sur le serveur : pendant ce court laps de temps, le lot affiche une
   pastille « journal en cours d'envoi ». Si l'envoi échoue, le lot est
   marqué journal incomplet : les motifs des lignes manquantes ne sont
   plus récupérables, le fichier source ayant été supprimé. La mécanique
   exacte est décrite dans la [documentation technique](documentation-technique.md#sec-import).
-- **Un lot `Failed` n'a pas de journal** (il n'écrit rien, donc le
-  journal n'existe pas) : son motif est enregistré sur le lot et
-  affiché par l'assistant, et la colonne « Reason » du tableau de bord
-  (masquée par défaut) le rend lisible aussi.
+- **Un lot `Failed` n'a rien écrit : ni journal, ni rapport.** Son motif est
+  enregistré sur le lot et affiché par l'assistant à l'étape 5 : une phrase
+  lisible (valeur incompatible avec le type de la colonne cible, violation
+  de contrainte…). Le détail technique brut reste dans les journaux serveur.
 
 ![Étape 5 : résumé avant import](images/10-step5-ready.png){width=90%}
 
@@ -157,7 +158,7 @@ invalides, 5 dates invalides, 5 booléens invalides).
   (toutes les 2 secondes) ; ce n'est pas du temps réel strict, et les
   vues filtrées ne sont pas perturbées par ce rafraîchissement.
 
-![Tableau de bord après un import](images/12-dashboard-after.png){width=90%}
+![Tableau de bord : journal d'un lot, motif de chaque rejet ligne à ligne](images/12-dashboard-after.png){width=90%}
 
 ## Règles de validation par entité
 
@@ -195,7 +196,7 @@ remplissage est portée par le mapping, pas par les règles.
 | Validation impossible (bouton inactif) | Aucun mapping enregistré | Enregistrer le mapping (étape 3) |
 | Import impossible (bouton inactif) | Validation pas encore lancée, ou rejets sous le mode *Reject entire import* | Valider (étape 4), corriger, ou changer de mode |
 | Un mapping du même nom existe déjà | Nom déjà pris pour cette entité | Choisir un autre nom (unicité par entité) |
-| Lot `Failed` | Erreur bloquante (ex. colonne mappée absente du fichier) | Lire le motif porté par le lot (assistant ou pastille « Reason »), corriger, relancer |
+| Lot `Failed` | Erreur bloquante (ex. colonne mappée absente du fichier, valeur incompatible avec un type de colonne) | Relire le motif affiché à l'étape 5 (phrase lisible), corriger, relancer |
 | `Mapping … not found` (404) | Mapping supprimé entre-temps | Re-créer ou recharger le mapping |
 | Import qui échoue bruyamment sur une règle | Champ de l'entité disparu (dérive de schéma) : la règle est incalculable et le lot est arrêté | Corriger ou désactiver la règle sur la page des règles |
 
