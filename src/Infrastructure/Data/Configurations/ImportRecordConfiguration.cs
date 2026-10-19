@@ -14,6 +14,7 @@ public class ImportRecordConfiguration : IEntityTypeConfiguration<ImportRecord>
         // Payload holds the JSON snapshot of a row's mapped values; no length cap needed
         // (rows are bounded), keep it as text.
         builder.Property(t => t.ErrorMessage).HasMaxLength(ImportRecord.MaxErrorMessageLength);
+        builder.Property(t => t.ErrorCode).HasMaxLength(ImportRecord.MaxErrorCodeLength);
         builder.Property(t => t.Status).HasConversion<int>();
 
         // Journal framework (spec §7): the drill-down's stable sort/filter —

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Ardalis.GuardClauses;
+using DataMart.Application.Dashboard.Queries.GetImportJournalSummary;
 using DataMart.Application.Common.Interfaces;
 using DataMart.Domain.Enums;
 using MediatR;
@@ -26,7 +27,11 @@ public record GetImportJournalQuery(
     int BatchId,
     int Page = 1,
     int PageSize = 50,
-    ImportRowStatus? Status = null) : IRequest<ImportJournalPage>;
+    ImportRowStatus? Status = null,
+    // Exact-match error code: the grouped drill-down expands one rejection box
+    // (same issue = same box) by paging this group's rows. The summary's
+    // "uncoded" key maps to rows with no code (pre-framework batches).
+    string? ErrorCode = null) : IRequest<ImportJournalPage>;
 
 public class GetImportJournalQueryHandler : IRequestHandler<GetImportJournalQuery, ImportJournalPage>
 {
@@ -56,6 +61,13 @@ public class GetImportJournalQueryHandler : IRequestHandler<GetImportJournalQuer
 
         if (request.Status.HasValue)
             q = q.Where(r => r.Status == request.Status.Value);
+
+        if (!string.IsNullOrEmpty(request.ErrorCode))
+        {
+            q = request.ErrorCode == ImportJournalSummaryDto.UncodedGroupKey
+                ? q.Where(r => r.ErrorCode == null)
+                : q.Where(r => r.ErrorCode == request.ErrorCode);
+        }
 
         var totalCount = await q.CountAsync(cancellationToken);
 

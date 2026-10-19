@@ -208,6 +208,7 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                         var values = new object?[columns.Count];
                         bool skipRow = false;
                         string? rowError = null;
+                        string? errorCode = null;
 
                         for (int i = 0; i < activeMappings.Count; i++)
                         {
@@ -225,12 +226,15 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                             }
                             catch (AppValidationException ex)
                             {
-                                rowError ??= $"Row {rowNumber}: {ex.Message}";
-                                skipRow = true;
                                 // Row is rejected; skip the stats/required checks for this
                                 // column but keep parsing the remaining ones, exactly like
                                 // the pre-flight validator — the payload snapshots and error
                                 // lists of both paths must stay comparable.
+                                rowError ??= $"Row {rowNumber}: {ex.Message}";
+                                // Stable issue key (no row/value detail): what the journal's
+                                // similarity grouping collapses on.
+                                errorCode ??= Truncate($"parse.{col.TargetColName}.{columns[i].DbType}", ImportRecord.MaxErrorCodeLength);
+                                skipRow = true;
                                 continue;
                             }
 
@@ -253,6 +257,7 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                                     case EmptyFieldMode.SkipRow:
                                         skipRow = true;
                                         rowError ??= $"Row {rowNumber}: required field '{col.TargetColName}' is empty";
+                                        errorCode ??= $"required.{col.TargetColName}";
                                         break;
                                     case EmptyFieldMode.Default:
                                         values[i] = ImportCellParser.GetDefault(columns[i].DbType);
@@ -269,6 +274,8 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
 
                         foreach (var failure in RuleEvaluator.ApplyRules(rules, fieldTypes, payload, mapping.TargetEntity, nowUtc))
                         {
+                            if (rowError is null)
+                                errorCode ??= $"rule.{failure.RuleId}";
                             rowError = rowError is null
                                 ? $"Row {rowNumber}: {failure.Message}"
                                 : $"{rowError}; {failure.Message}";
@@ -282,6 +289,7 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                             // Typed 1-based source-file row (journal framework tier 2);
                             // SourceKey stays as the write-once provenance string.
                             RowNumber = rowNumber,
+                            ErrorCode = errorCode,
                             Status = skipRow ? ImportRowStatus.Rejected : ImportRowStatus.Imported,
                             // The column is capped at 2000 (EF configuration); rule
                             // failures concatenate unbounded, so an over-long message

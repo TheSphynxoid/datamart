@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit, signal, computed, effect } from '@angular/core';
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
-import { DashboardClient, ImportStatisticsDto, ImportBatchListItemDto, ImportBatchesPage, ImportJournalEntryDto, ImportJournalPage, BatchDetailDto } from '../web-api-client';
+import { DashboardClient, ImportStatisticsDto, ImportBatchListItemDto, ImportBatchesPage, ImportJournalEntryDto, ImportJournalPage, BatchDetailDto, ImportJournalSummaryDto } from '../web-api-client';
 import { MappingEndpointsClient, MappingDto } from '../web-api-client';
 import { PollerHandle, startPoller } from '../util/poll';
 
@@ -65,11 +65,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
   ];
 
   protected readonly selectedBatchId = signal<number | null>(null);
-  protected readonly journal = signal<ImportJournalEntryDto[]>([]);
-  protected readonly journalTotalCount = signal(0);
-  protected readonly journalPage = signal(1);
-  protected readonly journalPageSize = signal(50);
-  protected readonly journalLoading = signal(false);
+
+  // Grouped journal drill-down (tier 2): imported rows collapse into one box
+  // (their entries would be identical); rejections group by stable error code
+  // — same issue, same box. Expanding a box loads its rows paginated on demand;
+  // nothing ever loads all rows of a batch.
+  protected readonly journalSummary = signal<ImportJournalSummaryDto | null>(null);
+  protected readonly journalSummaryLoading = signal(false);
+  protected readonly importedExpanded = signal(false);
+  protected readonly importedPage = signal<ImportJournalPage | null>(null);
+  protected readonly expandedGroups = signal<string[]>([]);
+  // Rows per expanded group, keyed by the group's error code; null = load failed.
+  protected readonly groupPages = signal<Record<string, ImportJournalPage | null>>({});
+
+  // Page size for the rows shown inside an expanded journal box.
+  private static readonly JournalBoxPageSize = 20;
 
   // Batch detail (tier-1 record incl. snapshot payloads): fetched once when a
   // batch is opened — never polled, snapshots are immutable after terminal status.
@@ -80,27 +90,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   protected readonly showMappingSnapshot = signal(false);
   protected readonly showRulesSnapshot = signal(false);
 
-  // Journal filter state.
-  protected readonly journalStatus = signal<number | null>(null);
-  protected readonly journalErrorSearch = signal<string>('');
+  // Journal payload visibility (shared by every expanded box).
   protected readonly journalShowPayload = signal(false);
-
-  protected readonly journalStatusOptions = [
-    { value: null, label: 'All rows' },
-    { value: 0, label: 'Imported' },
-    { value: 1, label: 'Rejected' },
-  ];
-
-  // Client-side filtered journal (after the server-side filter has been applied).
-  // We filter on the error message text only — that's the typical "find me the
-  // rows that errored on X" use case. The server already handles the row-status
-  // filter.
-  protected readonly journalFiltered = computed(() => {
-    const q = this.journalErrorSearch().trim().toLowerCase();
-    const items = this.journal();
-    if (!q) return items;
-    return items.filter(e => (e.errorMessage ?? '').toLowerCase().includes(q));
-  });
 
   protected readonly mappings = signal<MappingDto[]>([]);
 
@@ -313,17 +304,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.batchesPage.set(1);
   }
 
-  protected onJournalStatusChange(value: number | null | undefined): void {
-    this.journalStatus.set(value ?? null);
-    this.journalPage.set(1);
-    this.loadJournal();
-  }
-
-  protected onJournalErrorSearchChange(value: string): void {
-    this.journalErrorSearch.set(value ?? '');
-    // No page reset — this is a client-side filter over the loaded page.
-  }
-
   protected toggleJournalPayload(): void {
     this.journalShowPayload.update(v => !v);
   }
@@ -460,16 +440,22 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const batch = event.data;
     if (!batch) return;
     this.selectedBatchId.set(batch.id);
-    this.journal.set([]);
-    this.journalTotalCount.set(0);
-    this.journalPage.set(1);
-    this.journalErrorSearch.set('');
-    this.journalShowPayload.set(false);
+    this.resetJournalState();
     this.batchDetail.set(null);
     this.showMappingSnapshot.set(false);
     this.showRulesSnapshot.set(false);
-    this.loadJournal();
+    this.loadJournalSummary();
     this.loadBatchDetail();
+  }
+
+  private resetJournalState(): void {
+    this.journalSummary.set(null);
+    this.journalSummaryLoading.set(false);
+    this.importedExpanded.set(false);
+    this.importedPage.set(null);
+    this.expandedGroups.set([]);
+    this.groupPages.set({});
+    this.journalShowPayload.set(false);
   }
 
   protected toggleMappingSnapshot(): void {
@@ -490,32 +476,74 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  protected loadJournal(): void {
+  protected loadJournalSummary(): void {
     const batchId = this.selectedBatchId();
     if (batchId === null) return;
-    this.journalLoading.set(true);
-    this.dashboardClient.journal(
-      batchId,
-      this.journalPage(),
-      this.journalPageSize(),
-      this.journalStatus() ?? undefined,
-    ).subscribe({
-      next: (result: ImportJournalPage) => {
-        this.journal.set(result.items ?? []);
-        this.journalTotalCount.set(result.totalCount);
-        this.journalLoading.set(false);
-      },
-      error: () => { this.journal.set([]); this.journalTotalCount.set(0); this.journalLoading.set(false); }
+    this.journalSummaryLoading.set(true);
+    this.dashboardClient.summary(batchId).subscribe({
+      next: summary => { this.journalSummary.set(summary); this.journalSummaryLoading.set(false); },
+      error: () => { this.journalSummary.set(null); this.journalSummaryLoading.set(false); }
     });
+  }
+
+  protected toggleImportedRows(): void {
+    if (this.importedExpanded()) {
+      this.importedExpanded.set(false);
+      return;
+    }
+    this.importedExpanded.set(true);
+    if (!this.importedPage()) this.loadImportedRows(1);
+  }
+
+  protected loadImportedRows(page: number): void {
+    const batchId = this.selectedBatchId();
+    if (batchId === null) return;
+    this.dashboardClient.journal(batchId, page, DashboardComponent.JournalBoxPageSize, DashboardComponent.RowImported, undefined)
+      .subscribe({
+        next: p => this.importedPage.set(p),
+        error: () => this.importedPage.set(null),
+      });
+  }
+
+  protected isGroupExpanded(errorCode: string): boolean {
+    return this.expandedGroups().includes(errorCode);
+  }
+
+  protected toggleGroup(errorCode: string): void {
+    if (this.isGroupExpanded(errorCode)) {
+      this.expandedGroups.update(list => list.filter(c => c !== errorCode));
+      return;
+    }
+    this.expandedGroups.update(list => [...list, errorCode]);
+    // Load on first expand; re-expands reuse the loaded page.
+    if (!(errorCode in this.groupPages())) this.loadGroupRows(errorCode, 1);
+  }
+
+  protected loadGroupRows(errorCode: string, page: number): void {
+    const batchId = this.selectedBatchId();
+    if (batchId === null) return;
+    this.dashboardClient.journal(batchId, page, DashboardComponent.JournalBoxPageSize, DashboardComponent.RowRejected, errorCode)
+      .subscribe({
+        next: p => this.groupPages.update(map => ({ ...map, [errorCode]: p })),
+        error: () => this.groupPages.update(map => ({ ...map, [errorCode]: null })),
+      });
+  }
+
+  protected groupPage(errorCode: string, delta: number): void {
+    const p = this.groupPages()[errorCode];
+    if (!p) return;
+    const next = p.page + delta;
+    if (next < 1 || next > this.maxPage(p)) return;
+    this.loadGroupRows(errorCode, next);
+  }
+
+  protected maxPage(p: ImportJournalPage): number {
+    return Math.max(1, Math.ceil(p.totalCount / p.pageSize));
   }
 
   protected closeDetail(): void {
     this.selectedBatchId.set(null);
-    this.journal.set([]);
-    this.journalTotalCount.set(0);
-    this.journalStatus.set(null);
-    this.journalErrorSearch.set('');
-    this.journalShowPayload.set(false);
+    this.resetJournalState();
     this.batchDetail.set(null);
     this.showMappingSnapshot.set(false);
     this.showRulesSnapshot.set(false);

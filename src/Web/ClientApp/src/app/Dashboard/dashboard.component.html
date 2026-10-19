@@ -279,79 +279,135 @@
         }
       </section>
 
-      <!-- Journal filter toolbar -->
-      <div class="filter-toolbar">
-        <div class="filter-toolbar-row">
-          <label class="filter-field">
-            <span>Status</span>
-            <dx-select-box
-              [items]="journalStatusOptions"
-              [value]="journalStatus()"
-              valueExpr="value"
-              displayExpr="label"
-              (onValueChanged)="onJournalStatusChange($event.value)">
-            </dx-select-box>
-          </label>
-          <label class="filter-field filter-field-search">
-            <span>Filter by reason</span>
-            <dx-text-box
-              placeholder="e.g. required field&hellip;"
-              [value]="journalErrorSearch()"
-              [showClearButton]="true"
-              (onValueChanged)="onJournalErrorSearchChange($event.value)"
-              icon="search">
-            </dx-text-box>
-          </label>
-          <button
-            class="payload-toggle"
-            [class.active]="journalShowPayload()"
-            (click)="toggleJournalPayload()"
-            type="button">
-            <lucide-icon [name]="journalShowPayload() ? 'eye-off' : 'eye'" [size]="14"></lucide-icon>
-            {{ journalShowPayload() ? 'Hide payloads' : 'Show payloads' }}
-          </button>
-        </div>
+      <!-- Journal drill-down (tier 2, grouped): imported rows collapse into one
+           box — row-by-row entries would be identical. Rejections group by
+           stable error code: same issue, same box. Expanding a box loads its
+           rows (paginated) on demand; nothing ever loads all rows of a batch. -->
+      <div class="journal-toolbar">
+        <button
+          class="payload-toggle"
+          [class.active]="journalShowPayload()"
+          (click)="toggleJournalPayload()"
+          type="button">
+          <lucide-icon [name]="journalShowPayload() ? 'eye-off' : 'eye'" [size]="14"></lucide-icon>
+          {{ journalShowPayload() ? 'Hide payloads' : 'Show payloads' }}
+        </button>
       </div>
 
-      @if (journalLoading()) {
+      @if (journalSummaryLoading()) {
         <dx-load-indicator [visible]="true" hint="Loading journal&hellip;"></dx-load-indicator>
-      } @else if (journal().length === 0) {
-        <p class="placeholder">No journal rows for this batch.</p>
+      } @else if (journalSummary(); as s) {
+        <div class="journal-groups">
+          @if (s.importedRows > 0) {
+            <div class="journal-group journal-group-imported">
+              <button
+                class="journal-group-header"
+                type="button"
+                (click)="toggleImportedRows()"
+                [attr.aria-expanded]="importedExpanded()">
+                <lucide-icon [name]="importedExpanded() ? 'chevron-down' : 'chevron-right'" [size]="16"></lucide-icon>
+                <span class="badge badge-success">Imported</span>
+                <span class="journal-group-count">{{ s.importedRows | number }} row(s)</span>
+                <span class="journal-group-hint">collapsed &mdash; identical outcome; expand to inspect</span>
+              </button>
+              @if (importedExpanded()) {
+                @if (importedPage(); as ip) {
+                  <table class="journal-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 80px">Row</th>
+                        <th>Payload</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (entry of ip.items; track entry.id) {
+                        <tr>
+                          <td class="row-num" [title]="entry.rowNumber ? 'Source file row ' + entry.rowNumber : 'Pre-framework row — source provenance: ' + entry.sourceKey">{{ rowDisplay(entry) }}</td>
+                          <td>
+                            @if (entry.payload && journalShowPayload()) {
+                              <pre class="payload">{{ formatJson(entry.payload) }}</pre>
+                            }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                  <div class="journal-paging">
+                    <dx-button text="Prev" stylingMode="text" [disabled]="ip.page <= 1" (onClick)="loadImportedRows(ip.page - 1)"></dx-button>
+                    <span>Page {{ ip.page }} of {{ maxPage(ip) }}</span>
+                    <dx-button text="Next" stylingMode="text" [disabled]="ip.page >= maxPage(ip)" (onClick)="loadImportedRows(ip.page + 1)"></dx-button>
+                  </div>
+                } @else {
+                  <dx-load-indicator [visible]="true" hint="Loading rows&hellip;"></dx-load-indicator>
+                }
+              }
+            </div>
+          }
+
+          @for (g of s.rejectionGroups; track g.errorCode) {
+            <div class="journal-group journal-group-rejected">
+              <button
+                class="journal-group-header"
+                type="button"
+                (click)="toggleGroup(g.errorCode)"
+                [attr.aria-expanded]="isGroupExpanded(g.errorCode)"
+                [title]="'Issue: ' + g.errorCode">
+                <lucide-icon [name]="isGroupExpanded(g.errorCode) ? 'chevron-down' : 'chevron-right'" [size]="16"></lucide-icon>
+                <span class="badge badge-failed">Rejected</span>
+                <span class="journal-group-count">{{ g.count }} row(s)</span>
+                <span class="journal-group-message">{{ g.message }}</span>
+              </button>
+              @if (isGroupExpanded(g.errorCode)) {
+                @if (groupPages()[g.errorCode]; as gp) {
+                  <table class="journal-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 80px">Row</th>
+                        <th>Reason</th>
+                        <th>Payload</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (entry of gp.items; track entry.id) {
+                        <tr>
+                          <td class="row-num" [title]="entry.rowNumber ? 'Source file row ' + entry.rowNumber : 'Pre-framework row — source provenance: ' + entry.sourceKey">{{ rowDisplay(entry) }}</td>
+                          <td>
+                            @if (entry.errorMessage) {
+                              <div class="error-msg">{{ entry.errorMessage }}</div>
+                            }
+                          </td>
+                          <td>
+                            @if (entry.payload && journalShowPayload()) {
+                              <pre class="payload">{{ formatJson(entry.payload) }}</pre>
+                            }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                  <div class="journal-paging">
+                    <dx-button text="Prev" stylingMode="text" [disabled]="gp.page <= 1" (onClick)="groupPage(g.errorCode, -1)"></dx-button>
+                    <span>Page {{ gp.page }} of {{ maxPage(gp) }}</span>
+                    <dx-button text="Next" stylingMode="text" [disabled]="gp.page >= maxPage(gp)" (onClick)="groupPage(g.errorCode, 1)"></dx-button>
+                  </div>
+                } @else {
+                  <dx-load-indicator [visible]="true" hint="Loading rows&hellip;"></dx-load-indicator>
+                }
+              }
+            </div>
+          }
+
+          @if (s.totalRows === 0) {
+            <p class="placeholder">No journal rows for this batch.</p>
+          }
+        </div>
+        @if (s.totalRows > 0) {
+          <p class="total-count">
+            {{ s.importedRows | number }} imported &middot; {{ s.rejectedRows | number }} rejected &middot; {{ s.totalRows | number }} journal row(s) in total.
+          </p>
+        }
       } @else {
-        <table class="journal-table">
-          <thead>
-            <tr>
-              <th style="width: 80px">Row</th>
-              <th style="width: 120px">Status</th>
-              <th>Reason / Payload</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (entry of journalFiltered(); track entry.id) {
-              <tr>
-                <td class="row-num" [title]="entry.rowNumber ? 'Source file row ' + entry.rowNumber : 'Pre-framework row — source provenance: ' + entry.sourceKey">{{ rowDisplay(entry) }}</td>
-                <td>
-                  @if (journalStatusBadge(entry.status); as b) {
-                    <span class="badge {{ b.cls }}">{{ b.label }}</span>
-                  }
-                </td>
-                <td>
-                  @if (entry.errorMessage) {
-                    <div class="error-msg">{{ entry.errorMessage }}</div>
-                  }
-                  @if (entry.payload && journalShowPayload()) {
-                    <pre class="payload">{{ formatJson(entry.payload) }}</pre>
-                  }
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-        <p class="total-count">
-          Showing {{ journalFiltered().length }} of {{ journal().length }} loaded row(s)
-          ({{ journalTotalCount() }} total in this batch).
-          @if (journalErrorSearch()) { <span class="filtered-hint">Filtered by reason on this page.</span> }
-        </p>
+        <p class="placeholder">No journal rows for this batch.</p>
       }
     </section>
   }

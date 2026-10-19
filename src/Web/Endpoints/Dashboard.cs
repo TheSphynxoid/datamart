@@ -1,6 +1,7 @@
 using DataMart.Application.Dashboard.Queries.GetBatchDetail;
 using DataMart.Application.Dashboard.Queries.GetImportBatches;
 using DataMart.Application.Dashboard.Queries.GetImportJournal;
+using DataMart.Application.Dashboard.Queries.GetImportJournalSummary;
 using DataMart.Application.Dashboard.Queries.GetImportStatistics;
 using DataMart.Domain.Enums;
 using DataMart.Web.Infrastructure;
@@ -20,6 +21,7 @@ public class Dashboard : IEndpointGroup
         groupBuilder.MapGet("batches", GetBatches);
         groupBuilder.MapGet("batches/{id:int}/detail", GetBatchDetail);
         groupBuilder.MapGet("batches/{id:int}/journal", GetJournal);
+        groupBuilder.MapGet("batches/{id:int}/journal/summary", GetJournalSummary);
     }
 
     public static async Task<Ok<ImportStatisticsDto>> GetStatistics(ISender sender)
@@ -56,11 +58,20 @@ public class Dashboard : IEndpointGroup
         int id,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
-        [FromQuery] ImportRowStatus? status = null)
+        [FromQuery] ImportRowStatus? status = null,
+        [FromQuery] string? errorCode = null)
     {
         // The journal handler checks batch existence and throws NotFoundException if
         // the batch id doesn't exist; the global exception handler maps that to 404.
-        var result = await sender.Send(new GetImportJournalQuery(id, page, pageSize, status));
+        var result = await sender.Send(new GetImportJournalQuery(id, page, pageSize, status, errorCode));
+        return TypedResults.Ok(result);
+    }
+
+    public static async Task<Ok<ImportJournalSummaryDto>> GetJournalSummary(ISender sender, int id)
+    {
+        // Grouped tier-2 view: imported rows collapsed into a count, rejections
+        // grouped by identical message. Unknown batch id -> 404 (as above).
+        var result = await sender.Send(new GetImportJournalSummaryQuery(id));
         return TypedResults.Ok(result);
     }
 }

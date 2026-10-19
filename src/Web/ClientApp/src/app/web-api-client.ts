@@ -114,9 +114,14 @@ export interface IDashboardClient {
      * @param page (optional) 
      * @param pageSize (optional) 
      * @param status (optional) 
+     * @param errorCode (optional) 
      * @return OK
      */
-    journal(id: number, page: number | undefined, pageSize: number | undefined, status: number | undefined): Observable<ImportJournalPage>;
+    journal(id: number, page: number | undefined, pageSize: number | undefined, status: number | undefined, errorCode: string | undefined): Observable<ImportJournalPage>;
+    /**
+     * @return OK
+     */
+    summary(id: number): Observable<ImportJournalSummaryDto>;
 }
 
 @Injectable({
@@ -363,9 +368,10 @@ export class DashboardClient implements IDashboardClient {
      * @param page (optional) 
      * @param pageSize (optional) 
      * @param status (optional) 
+     * @param errorCode (optional) 
      * @return OK
      */
-    journal(id: number, page: number | undefined, pageSize: number | undefined, status: number | undefined): Observable<ImportJournalPage> {
+    journal(id: number, page: number | undefined, pageSize: number | undefined, status: number | undefined, errorCode: string | undefined): Observable<ImportJournalPage> {
         let url_ = this.baseUrl + "/api/Dashboard/batches/{id}/journal?";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
@@ -382,6 +388,10 @@ export class DashboardClient implements IDashboardClient {
             throw new globalThis.Error("The parameter 'status' cannot be null.");
         else if (status !== undefined)
             url_ += "status=" + encodeURIComponent("" + status) + "&";
+        if (errorCode === null)
+            throw new globalThis.Error("The parameter 'errorCode' cannot be null.");
+        else if (errorCode !== undefined)
+            url_ += "errorCode=" + encodeURIComponent("" + errorCode) + "&";
         url_ = url_.replace(/[?&]$/, "");
 
         let options_ : any = {
@@ -418,6 +428,72 @@ export class DashboardClient implements IDashboardClient {
             let result200: any = null;
             let resultData200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver);
             result200 = ImportJournalPage.fromJS(resultData200);
+            return _observableOf(result200);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Bad Request", status, _responseText, _headers);
+            }));
+        } else if (status === 401) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Unauthorized", status, _responseText, _headers);
+            }));
+        } else if (status === 403) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Forbidden", status, _responseText, _headers);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    summary(id: number): Observable<ImportJournalSummaryDto> {
+        let url_ = this.baseUrl + "/api/Dashboard/batches/{id}/journal/summary";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processSummary(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processSummary(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<ImportJournalSummaryDto>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<ImportJournalSummaryDto>;
+        }));
+    }
+
+    protected processSummary(response: HttpResponseBase): Observable<ImportJournalSummaryDto> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            let resultData200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver);
+            result200 = ImportJournalSummaryDto.fromJS(resultData200);
             return _observableOf(result200);
             }));
         } else if (status === 400) {
@@ -3814,6 +3890,81 @@ export interface IImportJournalPage {
     [key: string]: any;
 }
 
+export class ImportJournalSummaryDto implements IImportJournalSummaryDto {
+    batchId!: number;
+    totalRows!: number;
+    importedRows!: number;
+    rejectedRows!: number;
+    rejectionGroups!: RejectionGroupDto[];
+
+    [key: string]: any;
+
+    constructor(data?: IImportJournalSummaryDto) {
+        if (data) {
+            for (var property in data) {
+                if (data.hasOwnProperty(property))
+                    (this as any)[property] = (data as any)[property];
+            }
+        }
+        if (!data) {
+            this.rejectionGroups = [];
+        }
+    }
+
+    init(_data?: any) {
+        if (_data) {
+            for (var property in _data) {
+                if (_data.hasOwnProperty(property))
+                    this[property] = _data[property];
+            }
+            this.batchId = _data["batchId"];
+            this.totalRows = _data["totalRows"];
+            this.importedRows = _data["importedRows"];
+            this.rejectedRows = _data["rejectedRows"];
+            if (Array.isArray(_data["rejectionGroups"])) {
+                this.rejectionGroups = [] as any;
+                for (let item of _data["rejectionGroups"])
+                    this.rejectionGroups!.push(RejectionGroupDto.fromJS(item));
+            }
+        }
+    }
+
+    static fromJS(data: any): ImportJournalSummaryDto {
+        data = typeof data === 'object' ? data : {};
+        let result = new ImportJournalSummaryDto();
+        result.init(data);
+        return result;
+    }
+
+    toJSON(data?: any) {
+        data = typeof data === 'object' ? data : {};
+        for (var property in this) {
+            if (this.hasOwnProperty(property))
+                data[property] = this[property];
+        }
+        data["batchId"] = this.batchId;
+        data["totalRows"] = this.totalRows;
+        data["importedRows"] = this.importedRows;
+        data["rejectedRows"] = this.rejectedRows;
+        if (Array.isArray(this.rejectionGroups)) {
+            data["rejectionGroups"] = [];
+            for (let item of this.rejectionGroups)
+                data["rejectionGroups"].push(item ? item.toJSON() : undefined as any);
+        }
+        return data;
+    }
+}
+
+export interface IImportJournalSummaryDto {
+    batchId: number;
+    totalRows: number;
+    importedRows: number;
+    rejectedRows: number;
+    rejectionGroups: RejectionGroupDto[];
+
+    [key: string]: any;
+}
+
 export class ImportReportDto implements IImportReportDto {
     batchId!: number | undefined;
     status!: number;
@@ -4408,6 +4559,70 @@ export class RegisterRequest implements IRegisterRequest {
 export interface IRegisterRequest {
     email: string;
     password: string;
+
+    [key: string]: any;
+}
+
+export class RejectionGroupDto implements IRejectionGroupDto {
+    errorCode!: string;
+    message!: string;
+    count!: number;
+    minRowNumber!: number | undefined;
+    maxRowNumber!: number | undefined;
+
+    [key: string]: any;
+
+    constructor(data?: IRejectionGroupDto) {
+        if (data) {
+            for (var property in data) {
+                if (data.hasOwnProperty(property))
+                    (this as any)[property] = (data as any)[property];
+            }
+        }
+    }
+
+    init(_data?: any) {
+        if (_data) {
+            for (var property in _data) {
+                if (_data.hasOwnProperty(property))
+                    this[property] = _data[property];
+            }
+            this.errorCode = _data["errorCode"];
+            this.message = _data["message"];
+            this.count = _data["count"];
+            this.minRowNumber = _data["minRowNumber"];
+            this.maxRowNumber = _data["maxRowNumber"];
+        }
+    }
+
+    static fromJS(data: any): RejectionGroupDto {
+        data = typeof data === 'object' ? data : {};
+        let result = new RejectionGroupDto();
+        result.init(data);
+        return result;
+    }
+
+    toJSON(data?: any) {
+        data = typeof data === 'object' ? data : {};
+        for (var property in this) {
+            if (this.hasOwnProperty(property))
+                data[property] = this[property];
+        }
+        data["errorCode"] = this.errorCode;
+        data["message"] = this.message;
+        data["count"] = this.count;
+        data["minRowNumber"] = this.minRowNumber;
+        data["maxRowNumber"] = this.maxRowNumber;
+        return data;
+    }
+}
+
+export interface IRejectionGroupDto {
+    errorCode: string;
+    message: string;
+    count: number;
+    minRowNumber: number | undefined;
+    maxRowNumber: number | undefined;
 
     [key: string]: any;
 }

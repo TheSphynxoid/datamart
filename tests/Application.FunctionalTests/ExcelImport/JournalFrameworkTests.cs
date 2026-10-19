@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using DataMart.Application.Dashboard.Queries.GetBatchDetail;
 using DataMart.Application.Dashboard.Queries.GetImportJournal;
+using DataMart.Application.Dashboard.Queries.GetImportJournalSummary;
 using DataMart.Application.ImportFile.Commands.ImportFile;
 using DataMart.Application.Mappings;
 using DataMart.Application.Mappings.Commands.CreateMapping;
@@ -156,6 +157,45 @@ public class JournalFrameworkTests : IAsyncLifetime
         var report = await TestApp.SendAsync(new DataMart.Application.ImportFile.Queries.GetImportReport.GetImportReportQuery(started.BatchId));
         report.RejectedRows.ShouldBe(3);
         report.Errors.Select(e => e.RowNumber).ShouldBeUnique();
+    }
+
+    [Fact]
+    public async Task JournalSummary_GroupsRejectionsByErrorCode_AndCollapsesImported()
+    {
+        // PartialErrors: 10 rows — 7 imported, 2 missing-required + 1 bad type.
+        var started = await SendImportAsync(ClientAccountFixtures.Scenario.PartialErrors, EmptyFieldMode.SkipRow);
+        await BatchTerminalWaiter.WaitForBatchTerminalAsync(started.BatchId);
+
+        var summary = await TestApp.SendAsync(new GetImportJournalSummaryQuery(started.BatchId));
+        summary.TotalRows.ShouldBe(10);
+        summary.ImportedRows.ShouldBe(7);
+        summary.RejectedRows.ShouldBe(3);
+
+        // Same issue = same box: the two missing-required rows share one code,
+        // the bad-type row has its own.
+        summary.RejectionGroups.Count.ShouldBe(2);
+        var required = summary.RejectionGroups.Single(g => g.ErrorCode == "required.AccountNumber");
+        required.Count.ShouldBe(2);
+        required.MinRowNumber.ShouldNotBeNull();
+        required.MaxRowNumber!.Value.ShouldBeGreaterThanOrEqualTo(required.MinRowNumber!.Value);
+        required.Message.ShouldContain("required field 'AccountNumber'");
+
+        var parse = summary.RejectionGroups.Single(g => g.ErrorCode.StartsWith("parse."));
+        parse.Count.ShouldBe(1);
+        parse.Message.ShouldNotBeNullOrEmpty();
+
+        // Group expansion: the paged journal query filtered by the exact code
+        // returns exactly that box's rows.
+        var groupPage = await TestApp.SendAsync(new GetImportJournalQuery(
+            started.BatchId, Status: ImportRowStatus.Rejected, ErrorCode: required.ErrorCode));
+        groupPage.TotalCount.ShouldBe(2);
+        groupPage.Items.All(i => i.ErrorMessage!.Contains("required field 'AccountNumber'")).ShouldBeTrue();
+
+        // Imported rows collapse into a count; expanding pages through them.
+        var importedPage = await TestApp.SendAsync(new GetImportJournalQuery(
+            started.BatchId, Status: ImportRowStatus.Imported));
+        importedPage.TotalCount.ShouldBe(7);
+        importedPage.Items.All(i => i.Status == ImportRowStatus.Imported).ShouldBeTrue();
     }
 
     // -----------------------------------------------------------------------

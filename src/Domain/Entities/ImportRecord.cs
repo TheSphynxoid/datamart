@@ -19,6 +19,10 @@ public class ImportRecord : BaseAuditableEntity
     /// concatenation cannot fail the journal chunk write.</summary>
     public const int MaxErrorMessageLength = 2000;
 
+    /// <summary>Max length of <see cref="ErrorCode"/>; must stay in sync with the
+    /// EF configuration. Writers must truncate to this.</summary>
+    public const int MaxErrorCodeLength = 200;
+
     private string? _sourceKey;
     private int? _importBatchId;
 
@@ -28,6 +32,13 @@ public class ImportRecord : BaseAuditableEntity
     /// honest audit value for them, not a sentinel 0. Indexed with
     /// <see cref="ImportBatchId"/> for the drill-down's stable sort/filter.</summary>
     public int? RowNumber { get; set; }
+
+    /// <summary>Stable issue key for similarity grouping in the journal drill-down
+    /// ("same issue = same box"): <c>required.{field}</c>, <c>parse.{field}.{type}</c>,
+    /// <c>rule.{ruleId}</c>. Unlike <see cref="ErrorMessage"/> it carries no row or
+    /// value detail. Null on pre-framework rows. The first issue on a row wins
+    /// (mirrors how <see cref="ErrorMessage"/> accumulates).</summary>
+    public string? ErrorCode { get; set; }
 
     /// <summary>JSON snapshot of the row's mapped values: { targetColumn: value }.</summary>
     public string? Payload { get; set; }

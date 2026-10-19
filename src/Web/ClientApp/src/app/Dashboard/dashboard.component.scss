@@ -467,3 +467,83 @@
   max-height: 18rem;
   margin-top: 0.5rem;
 }
+
+// ── Grouped journal drill-down ────────────────────────────────────────────────
+// Imported rows collapse into one box (identical entries); rejections group by
+// stable error code — same issue, same box. Boxes expand to paginated rows.
+
+.journal-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+}
+
+.journal-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.journal-group {
+  border: 1px solid var(--dx-color-border);
+  border-radius: var(--dx-border-radius);
+  overflow: hidden;
+}
+
+.journal-group-imported {
+  border-color: color-mix(in srgb, var(--dx-color-success, #28a745) 30%, var(--dx-color-border));
+}
+
+.journal-group-rejected {
+  border-color: color-mix(in srgb, var(--dx-color-danger, #dc3545) 30%, var(--dx-color-border));
+}
+
+.journal-group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: transparent;
+  color: var(--dx-color-text);
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--dx-color-primary) 6%, transparent);
+  }
+}
+
+.journal-group-count {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.journal-group-hint {
+  color: var(--dx-texteditor-color-label, #6c757d);
+  font-size: 0.8rem;
+}
+
+.journal-group-message {
+  color: color-mix(in srgb, var(--dx-color-danger) 80%, var(--dx-color-text));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.journal-group .journal-table {
+  margin: 0 0.5rem 0.5rem;
+  width: calc(100% - 1rem);
+}
+
+.journal-paging {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.25rem 0.75rem 0.5rem;
+  color: var(--dx-texteditor-color-label);
+  font-size: 0.85rem;
+}

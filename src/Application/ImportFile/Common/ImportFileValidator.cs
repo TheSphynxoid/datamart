@@ -166,6 +166,7 @@ public class ImportFileValidator
             var values = new object?[activeMappings.Count];
             bool skipRow = false;
             string? rowError = null;
+            string? errorCode = null;
 
             for (int i = 0; i < activeMappings.Count; i++)
             {
@@ -180,6 +181,7 @@ public class ImportFileValidator
                 catch (AppValidationException ex)
                 {
                     rowError ??= $"Row {rowNumber}: {ex.Message}";
+                    errorCode ??= ImportFileExecutor.Truncate($"parse.{col.TargetColName}.{columnImportType[col.ColumnName]}", ImportRecord.MaxErrorCodeLength);
                     skipRow = true;
                     // Leave values[i] null; the record will be marked Rejected below.
                     continue;
@@ -194,10 +196,12 @@ public class ImportFileValidator
                             // pre-flight scan. We record the error and continue so the user
                             // gets a complete error list. The real import would abort.
                             rowError ??= $"Row {rowNumber}: required field '{col.TargetColName}' is empty";
+                            errorCode ??= $"required.{col.TargetColName}";
                             skipRow = true;
                             break;
                         case EmptyFieldMode.SkipRow:
                             rowError ??= $"Row {rowNumber}: required field '{col.TargetColName}' is empty";
+                            errorCode ??= $"required.{col.TargetColName}";
                             skipRow = true;
                             break;
                         case EmptyFieldMode.Default:
@@ -213,6 +217,8 @@ public class ImportFileValidator
 
             foreach (var failure in RuleEvaluator.ApplyRules(rules, fieldTypes, payload, mapping.TargetEntity, nowUtc))
             {
+                if (rowError is null)
+                    errorCode ??= $"rule.{failure.RuleId}";
                 rowError = rowError is null
                     ? $"Row {rowNumber}: {failure.Message}"
                     : $"{rowError}; {failure.Message}";
@@ -226,6 +232,7 @@ public class ImportFileValidator
                 // Typed 1-based source-file row (journal framework tier 2) — keeps the
                 // dry-run report on the same typed fact as the real import's journal.
                 RowNumber = rowNumber,
+                ErrorCode = errorCode,
                 Status = skipRow ? ImportRowStatus.Rejected : ImportRowStatus.Imported,
                 // Same truncation as the executor so both paths report identical
                 // messages for the same row (the column is capped at 2000 in EF).
