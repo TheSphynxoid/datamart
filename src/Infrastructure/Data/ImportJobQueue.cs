@@ -4,9 +4,10 @@ using DataMart.Application.Common.Interfaces;
 namespace DataMart.Infrastructure.Data;
 
 /// <summary>
-/// In-process FIFO queue of import jobs. Jobs are processed one at a time by
-/// <see cref="ImportProcessingService"/> — concurrent bulk imports would fight
-/// over the COPY transaction and make progress reporting meaningless.
+/// In-process FIFO queue of import jobs. The <see cref="ImportProcessingService"/>
+/// dispatches jobs to a <see cref="TableTaskScheduler"/>: imports to different
+/// tables run concurrently (bounded by <c>Imports:MaxConcurrent</c>); imports to
+/// the same table run strictly in this queue's FIFO order.
 /// </summary>
 public sealed class ImportJobQueue : IImportJobQueue
 {

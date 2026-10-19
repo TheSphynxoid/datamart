@@ -122,7 +122,7 @@ public class ImportFileCommandHandler : IRequestHandler<ImportFileCommand, Impor
             await _context.SaveChangesAsync(cancellationToken);
 
             await _queue.EnqueueAsync(
-                new ImportJob(tempPath, batch.Id, request.MappingId, request.EmptyMode, request.SheetIndex),
+                new ImportJob(tempPath, batch.Id, request.MappingId, request.EmptyMode, mapping.TargetEntity, request.SheetIndex),
                 cancellationToken);
 
             return new ImportStarted(batch.Id, totalRows);
