@@ -327,7 +327,7 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
 
   protected editStep(index: number): void {
     if (this.statusOf(index) === 'completed') {
-      this.currentStepId.set(this.steps[index].id);
+      this.navigateTo(index);
     }
   }
 
@@ -335,24 +335,65 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
     const idx = e.component.option('selectedIndex');
     const step = this.steps[idx];
     if (step) {
-      this.currentStepId.set(step.id);
+      this.navigateTo(idx);
     }
   }
 
   protected confirmStep(index: number, commit: () => void): void {
     const wasDone = this.isStepDone(index);
     commit();
-    if (wasDone) {
-      // Changing the target entity must not discard the uploaded file
-      // (its columns/rows are entity-independent); only the mapping and
-      // later steps depend on the chosen entity.
-      const resetFrom = index === 0 ? 2 : index + 1;
-      this.resetFrom(resetFrom);
-    }
+    this.resetDownstream(index, wasDone);
     const next = this.steps[index + 1];
     if (next) {
       this.currentStepId.set(next.id);
     }
+  }
+
+  private navigateTo(index: number): void {
+    // The stepper and the panel headers are free navigation and must not strand
+    // an unconfirmed draft: downstream steps render the COMMITTED state, so a
+    // dirty prior draft is committed (with its normal cascade reset) first.
+    // Without this, e.g. picking a new entity and jumping straight to the map
+    // step keeps the mapping built for the old entity — the table shows the
+    // previous entity's fields.
+    for (let j = 0; j < index && j < 2; j++) {
+      if (this.isDraftDirty(j)) {
+        const wasDone = this.isStepDone(j);
+        this.commitDraftOf(j);
+        this.resetDownstream(j, wasDone);
+      }
+    }
+    this.currentStepId.set(this.steps[index].id);
+  }
+
+  private commitDraftOf(index: number): void {
+    switch (index) {
+      case 0:
+        if (this.draftEntity() !== null) this.selectedEntity.set(this.draftEntity());
+        break;
+      case 1:
+        if (this.draftFile() !== null) this.selectedFile.set(this.draftFile());
+        break;
+    }
+  }
+
+  // Only steps 0 (entity) and 1 (file) have the draft/committed pattern; a null
+  // draft is "nothing picked", not a change.
+  private isDraftDirty(index: number): boolean {
+    switch (index) {
+      case 0: return this.selectedEntity() !== null && this.draftEntity() !== null && this.draftEntity() !== this.selectedEntity();
+      case 1: return this.selectedFile() !== null && this.draftFile() !== null && this.draftFile() !== this.selectedFile();
+      default: return false;
+    }
+  }
+
+  private resetDownstream(index: number, wasDone: boolean): void {
+    if (!wasDone) return;
+    // Changing the target entity must not discard the uploaded file
+    // (its columns/rows are entity-independent); only the mapping and
+    // later steps depend on the chosen entity.
+    const resetFrom = index === 0 ? 2 : index + 1;
+    this.resetFrom(resetFrom);
   }
 
   protected confirmEntity(): void {
