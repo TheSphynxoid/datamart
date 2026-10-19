@@ -112,6 +112,48 @@ public static class TestApp
         await context.SaveChangesAsync();
     }
 
+    public static async Task UpdateAsync<TEntity>(TEntity entity)
+        where TEntity : class
+    {
+        using var scope = FunctionalTestSetup.ScopeFactory.CreateScope();
+
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        context.Update(entity);
+
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>Loads, edits and saves an entity inside a single tracked scope —
+    /// required for entities with owned collections (e.g. Mapping.Columns), whose
+    /// shadow keys cannot survive a detach/reattach round-trip.</summary>
+    public static async Task EditAsync<TEntity>(int id, Action<TEntity> edit)
+        where TEntity : class
+    {
+        using var scope = FunctionalTestSetup.ScopeFactory.CreateScope();
+
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var entity = await context.FindAsync<TEntity>(id);
+        Guard.Against.NotFound(id, entity);
+
+        edit(entity);
+
+        await context.SaveChangesAsync();
+    }
+
+    public static async Task<List<TEntity>> ListAsync<TEntity>(Func<IQueryable<TEntity>, IQueryable<TEntity>>? query = null)
+        where TEntity : class
+    {
+        using var scope = FunctionalTestSetup.ScopeFactory.CreateScope();
+
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var q = context.Set<TEntity>().AsQueryable();
+        if (query is not null) q = query(q);
+        return await q.ToListAsync();
+    }
+
     public static async Task<int> CountAsync<TEntity>() where TEntity : class
     {
         using var scope = FunctionalTestSetup.ScopeFactory.CreateScope();

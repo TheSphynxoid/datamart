@@ -47,8 +47,7 @@ public sealed class ImportProcessingService : BackgroundService
 
             foreach (var batch in stale)
             {
-                batch.Status = ImportStatus.Failed;
-                batch.FailedReason = "Interrupted: the process stopped during processing (reconciled at startup).";
+                batch.Fail("Interrupted: the process stopped during processing (reconciled at startup).");
             }
 
             // 2. Success batches with a partial journal -> JournalIncomplete = true.

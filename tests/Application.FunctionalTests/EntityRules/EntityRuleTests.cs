@@ -74,7 +74,7 @@ public class EntityRuleTests : IAsyncLifetime
         validation.Errors.ShouldContain(e => e.Reason.Contains("Balance must be >= 1000"));
 
         var started = await SendImportAsync();
-        await WaitForBatchTerminalAsync(started.BatchId);
+        await BatchTerminalWaiter.WaitForBatchTerminalAsync(started.BatchId);
 
         var batch = await TestApp.FindAsync<ImportBatch>(started.BatchId);
         batch!.Status.ShouldBe(ImportStatus.Success);
@@ -188,16 +188,5 @@ public class EntityRuleTests : IAsyncLifetime
         return await TestApp.SendAsync(new ImportFileCommand(stream, "client_ok.xlsx", _mappingId, EmptyFieldMode.SkipRow, SheetIndex: null));
     }
 
-    private static async Task WaitForBatchTerminalAsync(int batchId, int timeoutSeconds = 30)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
-        while (DateTime.UtcNow < deadline)
-        {
-            var batch = await TestApp.FindAsync<ImportBatch>(batchId);
-            if (batch is not null && batch.Status != ImportStatus.Processing)
-                return;
-            await Task.Delay(200);
-        }
-        throw new TimeoutException($"Batch {batchId} did not reach a terminal state within {timeoutSeconds}s.");
-    }
 }
+

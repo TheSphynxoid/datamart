@@ -7,6 +7,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Diagnostics;
 using DataMart.Application.Common.Exceptions;
@@ -32,15 +33,24 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
         private readonly IApplicationDbContext _context;
         private readonly IEntitySchemaService _entitySchemaService;
         private readonly ITransientErrorDetector _transientErrorDetector;
+        private readonly IImportJournalWriter _journalWriter;
         private readonly TimeProvider _timeProvider;
         private readonly ILogger<ImportFileExecutor> _logger;
 
-        public ImportFileExecutor(IBulkImporter importer, IApplicationDbContext context, IEntitySchemaService entitySchemaService, ITransientErrorDetector transientErrorDetector, TimeProvider timeProvider, ILogger<ImportFileExecutor> logger)
+        // Journal JSON is audit-read (dashboards, downloads): camelCase keys and
+        // string enums keep snapshots human-readable without a decoder ring.
+        private static readonly JsonSerializerOptions JournalJsonOptions = new(JsonSerializerDefaults.Web)
+        {
+            Converters = { new JsonStringEnumConverter() }
+        };
+
+        public ImportFileExecutor(IBulkImporter importer, IApplicationDbContext context, IEntitySchemaService entitySchemaService, ITransientErrorDetector transientErrorDetector, IImportJournalWriter journalWriter, TimeProvider timeProvider, ILogger<ImportFileExecutor> logger)
         {
             _importer = importer;
             _context = context;
             _entitySchemaService = entitySchemaService;
             _transientErrorDetector = transientErrorDetector;
+            _journalWriter = journalWriter;
             _timeProvider = timeProvider;
             _logger = logger;
         }
@@ -131,6 +141,37 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                     .ToListAsync(cancellationToken);
 
                 var nowUtc = _timeProvider.GetUtcNow();
+
+                // Journal framework tier-1 (spec §3): snapshot the effective config
+                // at import time — a copy, not an FK — so "import always ran on the
+                // config the user saw validated" is provable after the fact. MarkStarted
+                // is set-once and enforces the snapshot size cap: over the cap it throws
+                // and nothing is stored, and the catch below lands the batch in Failed
+                // with the cap as the reason (snapshots are never stored truncated).
+                // Calling it before column resolution keeps the snapshot even when
+                // schema drift fails the run — exactly the config that caused it.
+                var mappingSnapshotJson = JsonSerializer.Serialize(new
+                {
+                    mapping.Id,
+                    mapping.Name,
+                    mapping.TargetEntity,
+                    Columns = mapping.Columns
+                }, JournalJsonOptions);
+                var rulesSnapshotJson = JsonSerializer.Serialize(rules.Select(r => new
+                {
+                    r.Id,
+                    r.TargetEntity,
+                    r.Field,
+                    r.Operator,
+                    r.ValueSource,
+                    r.Value,
+                    r.Values,
+                    r.Function,
+                    r.FunctionArg,
+                    r.Message,
+                    r.IsActive
+                }), JournalJsonOptions);
+                batch.MarkStarted(mappingSnapshotJson, rulesSnapshotJson);
 
                 var columns = new List<ImportColumn>();
                 var columnStats = new List<ColumnStats>();
@@ -238,6 +279,9 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                         {
                             ImportBatchId = batch.Id,
                             SourceKey = rowNumber.ToString(),
+                            // Typed 1-based source-file row (journal framework tier 2);
+                            // SourceKey stays as the write-once provenance string.
+                            RowNumber = rowNumber,
                             Status = skipRow ? ImportRowStatus.Rejected : ImportRowStatus.Imported,
                             // The column is capped at 2000 (EF configuration); rule
                             // failures concatenate unbounded, so an over-long message
@@ -282,13 +326,18 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                 // the security/polish step.)
                 var rows = ReadRows().ToList();
 
-                await ImportWithRetryAsync(
+                var writeStats = await ImportWithRetryAsync(
                     mapping.TargetEntity,
                     columns,
                     rows,
                     batch.Id,
                     cancellationToken,
                     UpdateProgressAsync);
+
+                // Tier-1 fact through the writer seam: bracket the target-table IDs
+                // this COPY created (audit/revert scoping — raw material for the
+                // future revert/compensation seam).
+                await _journalWriter.UpdateImpactedIdRangeAsync(batch, writeStats);
 
                 // Build control totals JSON (FC-1)
                 var controlTotals = new
@@ -308,7 +357,7 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                 };
 
                 batch.SetControlTotals(JsonSerializer.Serialize(controlTotals));
-                batch.Status = ImportStatus.Success;
+                batch.Complete();
                 batch.ProcessedRows = rowNumber - 1;
                 batch.SkippedRows = skippedCount;
                 batch.SkippedRowsPreview = skippedRows.Count > 0
@@ -330,59 +379,23 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                 // partial data"). A journal-write failure must not turn a successful
                 // import into a failure.
                 //
-                // Chunked to keep EF's change tracker bounded: tracking 1M+ entities
-                // in a single SaveChanges stalls the change tracker and generates
-                // multi-MB batched INSERTs that can hang the pipeline. 5,000 per
-                // chunk keeps each round-trip small (~hundreds of KB of payload) and
-                // the change tracker memory bounded.
-                //
                 // The import is already Success from the user's perspective (target
                 // table is committed). The journal uploads in the background; each
                 // chunk bumps JournalRowsWritten so the dashboard can show the
                 // "Journal uploading" pill progress and hide it when the catch-up
-                // is complete.
-                const int journalChunkSize = 5_000;
-                for (int offset = 0; offset < importRecords.Count; offset += journalChunkSize)
-                {
-                    var chunkSize = Math.Min(journalChunkSize, importRecords.Count - offset);
-                    var chunk = importRecords.GetRange(offset, chunkSize);
-                    try
-                    {
-                        await _context.ImportRecords.AddRangeAsync(chunk, CancellationToken.None);
-                        await _context.SaveChangesAsync(CancellationToken.None);
-                        batch.JournalRowsWritten = offset + chunkSize;
-                        await _context.SaveChangesAsync(CancellationToken.None);
-                    }
-                    catch (Exception ex)
-                    {
-                        // Best-effort: a missing journal is logged but does not roll
-                        // back the imported rows. The import is logically Success.
-                        // Mark JournalIncomplete so the dashboard surfaces the audit gap
-                        // (the remaining rows cannot be re-derived — the source file
-                        // is already deleted by the finally block below).
-                        _logger.LogWarning(ex, "Failed to write import journal chunk (offset {Offset}, size {ChunkSize}) for batch {BatchId}.", offset, chunkSize, batch.Id);
-                        batch.JournalIncomplete = true;
-                        try
-                        {
-                            await _context.SaveChangesAsync(CancellationToken.None);
-                        }
-                        catch (Exception saveEx)
-                        {
-                            _logger.LogWarning(saveEx, "Failed to persist JournalIncomplete flag for batch {BatchId}.", batch.Id);
-                        }
-                        break;
-                    }
-                }
+                // is complete. All of that lives behind the IImportJournalWriter
+                // seam (journal framework spec §5.3): future journal facts extend
+                // the writer, not this pipeline.
+                await _journalWriter.WriteJournalChunksAsync(batch, importRecords);
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Import failed for batch {BatchId}.", batch.Id);
-            batch.Status = ImportStatus.Failed;
             // Failed batches have no row journal (the journal is written only
             // after a successful COPY), so the failure motif is stored on the
             // batch itself: what the wizard and the dashboard surface.
-            batch.FailedReason = _transientErrorDetector.DescribeFailure(ex);
+            batch.Fail(_transientErrorDetector.DescribeFailure(ex));
             // Same reason as above — the batch MUST land in Failed even on shutdown.
             // Last-resort: if even the terminal save fails (e.g. DB is gone), log
             // loudly so the stale-batch sweep on next startup can take over.
@@ -403,7 +416,7 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
         }
     }
 
-    private async Task ImportWithRetryAsync(
+    private async Task<ImportWriteStats> ImportWithRetryAsync(
         string tableName,
         IReadOnlyList<ImportColumn> columns,
         IEnumerable<ImportRow> rows,
@@ -418,8 +431,7 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
         {
             try
             {
-                await _importer.ImportAsync(tableName, columns, rows, batchId, cancellationToken, onProgress);
-                return;
+                return await _importer.ImportAsync(tableName, columns, rows, batchId, cancellationToken, onProgress);
             }
             catch (Exception ex) when (_transientErrorDetector.IsTransient(ex) && attempt < 3)
             {

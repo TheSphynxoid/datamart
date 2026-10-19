@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit, signal, computed, effect } from '@angular/core';
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
-import { DashboardClient, ImportStatisticsDto, ImportBatchListItemDto, ImportBatchesPage, ImportJournalEntryDto, ImportJournalPage } from '../web-api-client';
+import { DashboardClient, ImportStatisticsDto, ImportBatchListItemDto, ImportBatchesPage, ImportJournalEntryDto, ImportJournalPage, BatchDetailDto } from '../web-api-client';
 import { MappingEndpointsClient, MappingDto } from '../web-api-client';
 import { PollerHandle, startPoller } from '../util/poll';
 
@@ -70,6 +70,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
   protected readonly journalPage = signal(1);
   protected readonly journalPageSize = signal(50);
   protected readonly journalLoading = signal(false);
+
+  // Batch detail (tier-1 record incl. snapshot payloads): fetched once when a
+  // batch is opened — never polled, snapshots are immutable after terminal status.
+  protected readonly batchDetail = signal<BatchDetailDto | null>(null);
+  protected readonly batchDetailLoading = signal(false);
+  // Snapshot views are collapsed by default (progressive disclosure): the JSON
+  // blocks are audit evidence, not information the common "how did it go" scan needs.
+  protected readonly showMappingSnapshot = signal(false);
+  protected readonly showRulesSnapshot = signal(false);
 
   // Journal filter state.
   protected readonly journalStatus = signal<number | null>(null);
@@ -174,6 +183,39 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return null;
   }
 
+  // Compact text chips for the per-batch config snapshots (tier-1 list). Letter
+  // chips + tooltips keep the cell small; the full JSON lives in the detail panel.
+  protected snapshotChips(batch: { hasMappingSnapshot: boolean; hasRulesSnapshot: boolean }): { label: string; title: string }[] {
+    const chips: { label: string; title: string }[] = [];
+    if (batch.hasMappingSnapshot) chips.push({ label: 'M', title: 'Mapping snapshot available — open the batch for the full JSON.' });
+    if (batch.hasRulesSnapshot) chips.push({ label: 'R', title: 'Rules snapshot available — open the batch for the full JSON.' });
+    return chips;
+  }
+
+  // "min–max" for the impacted-ID range cell; an em dash reads better than
+  // "0" or "null" for pre-framework batches with no recorded range.
+  protected formatIdRange(range: { minImpactedId: number | null | undefined; maxImpactedId: number | null | undefined }): string {
+    if (range.minImpactedId == null || range.maxImpactedId == null) return '—';
+    return `${range.minImpactedId.toLocaleString()}–${range.maxImpactedId.toLocaleString()}`;
+  }
+
+  // Wall-clock duration between processing start and completion, humanized
+  // ("42s", "1m 12s"). Null while Processing or for pre-framework batches.
+  protected formatDuration(detail: { startedAt: string | Date | null; completedAt: string | Date | null }): string | null {
+    if (!detail.startedAt || !detail.completedAt) return null;
+    const seconds = (new Date(detail.completedAt).getTime() - new Date(detail.startedAt).getTime()) / 1000;
+    if (!isFinite(seconds) || seconds < 0) return null;
+    if (seconds < 60) return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}m ${Math.round(seconds - minutes * 60)}s`;
+  }
+
+  // Journal drill-down row label: the typed source-file row number; legacy
+  // (pre-framework) rows have none, so fall back to their provenance string.
+  protected rowDisplay(entry: ImportJournalEntryDto): string {
+    return entry.rowNumber ? entry.rowNumber.toLocaleString() : entry.sourceKey;
+  }
+
   // Full journal progress text for the batch detail panel header. Returns null
   // when there's nothing extra to show (journal complete or batch not Success).
   protected journalProgressText(batch: ImportBatchListItemDto): string | null {
@@ -192,9 +234,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       : { label: 'Imported', cls: 'badge-success' };
   }
 
-  // Pretty-print the row-level payload (JSON) for the journal cell. Falls back to the
-  // raw string if parsing fails or it's empty.
-  protected formatPayload(raw: string | null | undefined): string {
+  // Pretty-print a JSON block (row payloads, snapshots) for a <pre>. Falls
+  // back to the raw string if parsing fails or it's empty.
+  protected formatJson(raw: string | null | undefined): string {
     if (!raw) return '';
     try {
       const obj = JSON.parse(raw);
@@ -202,6 +244,22 @@ export class DashboardComponent implements OnInit, OnDestroy {
     } catch {
       return raw;
     }
+  }
+
+  // Download a snapshot JSON as a file (audit hand-off: regulators get the exact
+  // config copy without copy-pasting from the screen).
+  protected downloadSnapshot(kind: 'mapping' | 'rules'): void {
+    const detail = this.batchDetail();
+    if (!detail) return;
+    const raw = kind === 'mapping' ? detail.mappingSnapshotJson : detail.rulesSnapshotJson;
+    if (!raw) return;
+    const blob = new Blob([raw], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `batch-${detail.id}-${kind}-snapshot.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // Two-way binding helpers for the search input — bound to a plain string signal
@@ -407,7 +465,29 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.journalPage.set(1);
     this.journalErrorSearch.set('');
     this.journalShowPayload.set(false);
+    this.batchDetail.set(null);
+    this.showMappingSnapshot.set(false);
+    this.showRulesSnapshot.set(false);
     this.loadJournal();
+    this.loadBatchDetail();
+  }
+
+  protected toggleMappingSnapshot(): void {
+    this.showMappingSnapshot.update(v => !v);
+  }
+
+  protected toggleRulesSnapshot(): void {
+    this.showRulesSnapshot.update(v => !v);
+  }
+
+  protected loadBatchDetail(): void {
+    const batchId = this.selectedBatchId();
+    if (batchId === null) return;
+    this.batchDetailLoading.set(true);
+    this.dashboardClient.detail(batchId).subscribe({
+      next: detail => { this.batchDetail.set(detail); this.batchDetailLoading.set(false); },
+      error: () => { this.batchDetail.set(null); this.batchDetailLoading.set(false); }
+    });
   }
 
   protected loadJournal(): void {
@@ -436,6 +516,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.journalStatus.set(null);
     this.journalErrorSearch.set('');
     this.journalShowPayload.set(false);
+    this.batchDetail.set(null);
+    this.showMappingSnapshot.set(false);
+    this.showRulesSnapshot.set(false);
   }
 
   private daysAgo(days: number): Date {

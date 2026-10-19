@@ -96,7 +96,7 @@ public sealed class ValidationProcessingService : BackgroundService
             var errors = result.Records
                 .Where(r => r.Status == ImportRowStatus.Rejected)
                 .Select(r => new ImportReportError(
-                    int.TryParse(r.SourceKey, out var n) ? n : 0,
+                    r.RowNumber ?? 0,
                     r.ErrorMessage ?? string.Empty))
                 .OrderBy(e => e.RowNumber)
                 .ToList();

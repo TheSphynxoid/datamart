@@ -18,7 +18,7 @@ public class BulkImporter : IBulkImporter
     }
 
 
-    public async Task<int> ImportAsync(
+    public async Task<ImportWriteStats> ImportAsync(
         string tableName,
         IReadOnlyList<ImportColumn> columns,
         IEnumerable<ImportRow> rows,
@@ -65,7 +65,26 @@ public class BulkImporter : IBulkImporter
         // avoids NpgsqlOperationInProgressException ("connection is already in state 'Copy'").
         await transaction.CommitAsync(ct);
 
-        return rowCount;
+        // Journal framework tier-1 fact: bracket the target-table IDs this COPY
+        // created. Every row written by this COPY carries ImportBatchId, so a
+        // MIN/MAX over that filter is exactly this batch's range (gaps acceptable
+        // — a range claim for audit/revert scoping, not an enumeration). Runs on
+        // the already-open connection, right after the commit.
+        int? minImpactedId = null;
+        int? maxImpactedId = null;
+        await using (var rangeCmd = conn.CreateCommand())
+        {
+            rangeCmd.CommandText = $"SELECT MIN(\"Id\"), MAX(\"Id\") FROM {QuoteIdentifier(tableName)} WHERE \"ImportBatchId\" = @batchId";
+            rangeCmd.Parameters.Add(new NpgsqlParameter<int>("batchId", importBatchId));
+            await using var rangeReader = await rangeCmd.ExecuteReaderAsync(ct);
+            if (await rangeReader.ReadAsync(ct))
+            {
+                minImpactedId = rangeReader.IsDBNull(0) ? null : rangeReader.GetInt32(0);
+                maxImpactedId = rangeReader.IsDBNull(1) ? null : rangeReader.GetInt32(1);
+            }
+        }
+
+        return new ImportWriteStats(rowCount, minImpactedId, maxImpactedId);
     }
 
     static NpgsqlDbType MapType(ImportColumnType type) => type switch

@@ -64,7 +64,7 @@ public class ExcelImportScenariosTests : IAsyncLifetime
     public async Task Scenario_01_SuccessfulImport_ImportsAllRows()
     {
         var started = await SendImportAsync(ClientAccountFixtures.Scenario.Ok, EmptyFieldMode.SkipRow);
-        await WaitForBatchTerminalAsync(started.BatchId);
+        await BatchTerminalWaiter.WaitForBatchTerminalAsync(started.BatchId);
 
         var batch = await TestApp.FindAsync<ImportBatch>(started.BatchId);
         batch.ShouldNotBeNull();
@@ -100,7 +100,7 @@ public class ExcelImportScenariosTests : IAsyncLifetime
         validation.Errors.ShouldContain(e => e.Reason.Contains("required field 'AccountNumber'"));
 
         var started = await SendImportAsync(ClientAccountFixtures.Scenario.MissingAccountNumber, EmptyFieldMode.SkipRow);
-        await WaitForBatchTerminalAsync(started.BatchId);
+        await BatchTerminalWaiter.WaitForBatchTerminalAsync(started.BatchId);
 
         var report = await TestApp.SendAsync(new GetImportReportQuery(started.BatchId));
         report.ImportedRows.ShouldBe(4);
@@ -119,7 +119,7 @@ public class ExcelImportScenariosTests : IAsyncLifetime
         validation.ImportedRows.ShouldBe(3);
 
         var started = await SendImportAsync(ClientAccountFixtures.Scenario.BadTypes, EmptyFieldMode.SkipRow);
-        await WaitForBatchTerminalAsync(started.BatchId);
+        await BatchTerminalWaiter.WaitForBatchTerminalAsync(started.BatchId);
 
         var report = await TestApp.SendAsync(new GetImportReportQuery(started.BatchId));
         report.ImportedRows.ShouldBe(3);
@@ -145,7 +145,7 @@ public class ExcelImportScenariosTests : IAsyncLifetime
         validation.RejectedRows.ShouldBe(3);
 
         var started = await SendImportAsync(ClientAccountFixtures.Scenario.PartialErrors, EmptyFieldMode.SkipRow);
-        await WaitForBatchTerminalAsync(started.BatchId);
+        await BatchTerminalWaiter.WaitForBatchTerminalAsync(started.BatchId);
 
         var batch = await TestApp.FindAsync<ImportBatch>(started.BatchId);
         batch!.Status.ShouldBe(ImportStatus.Success);
@@ -207,16 +207,5 @@ public class ExcelImportScenariosTests : IAsyncLifetime
         return await TestApp.SendAsync(new ImportFileCommand(stream, $"client_{scenario}.xlsx", _mappingId, emptyMode, SheetIndex: null));
     }
 
-    private static async Task WaitForBatchTerminalAsync(int batchId, int timeoutSeconds = 30)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
-        while (DateTime.UtcNow < deadline)
-        {
-            var batch = await TestApp.FindAsync<ImportBatch>(batchId);
-            if (batch is not null && batch.Status != ImportStatus.Processing)
-                return;
-            await Task.Delay(200);
-        }
-        throw new TimeoutException($"Batch {batchId} did not reach a terminal state within {timeoutSeconds}s.");
-    }
 }
+

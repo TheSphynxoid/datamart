@@ -2,6 +2,7 @@
 using System.Text;
 
 using DataMart.Application.Common.Behaviours;
+using DataMart.Application.Common.Interfaces;
 using DataMart.Application.ImportFile.Commands.ImportFile;
 using DataMart.Application.ImportFile.Common;
 using FluentValidation;
@@ -35,5 +36,9 @@ public static class DependencyInjection
 
         builder.Services.AddScoped<ImportFileExecutor>();
         builder.Services.AddScoped<ImportFileValidator>();
+
+        // Journal-writer seam (journal framework spec §5.3): the import executor
+        // writes tier-2 chunks and tier-1 counter/ID-range updates through it.
+        builder.Services.AddScoped<IImportJournalWriter, ImportJournalWriter>();
     }
 }

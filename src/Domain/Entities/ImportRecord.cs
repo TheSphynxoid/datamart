@@ -22,6 +22,13 @@ public class ImportRecord : BaseAuditableEntity
     private string? _sourceKey;
     private int? _importBatchId;
 
+    /// <summary>Explicit 1-based source-file row number: the typed replacement for
+    /// parsing <see cref="SourceKey"/> (spec §4). Null on pre-framework rows — the
+    /// additive migration backfills nothing, and null ("not recorded") is the
+    /// honest audit value for them, not a sentinel 0. Indexed with
+    /// <see cref="ImportBatchId"/> for the drill-down's stable sort/filter.</summary>
+    public int? RowNumber { get; set; }
+
     /// <summary>JSON snapshot of the row's mapped values: { targetColumn: value }.</summary>
     public string? Payload { get; set; }
 

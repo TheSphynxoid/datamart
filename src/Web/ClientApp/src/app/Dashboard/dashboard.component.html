@@ -154,6 +154,10 @@
       <dxi-column dataField="totalRows" caption="Rows" [width]="90" format="#,##0"></dxi-column>
       <dxi-column dataField="processedRows" caption="Processed" [width]="100" format="#,##0"></dxi-column>
       <dxi-column dataField="skippedRows" caption="Rejected" [width]="100" format="#,##0"></dxi-column>
+      <dxi-column dataField="startedAt" dataType="datetime" caption="Started" [width]="150" cellTemplate="timeCell"></dxi-column>
+      <dxi-column dataField="completedAt" dataType="datetime" caption="Completed" [width]="150" cellTemplate="timeCell"></dxi-column>
+      <dxi-column caption="Impacted IDs" [width]="130" cellTemplate="idRangeCell"></dxi-column>
+      <dxi-column caption="Snapshots" [width]="100" cellTemplate="snapshotCell"></dxi-column>
       <dxi-column dataField="executedBy" caption="By" [width]="160"></dxi-column>
       <div *dxTemplate="let cell of 'statusCell'">
         @if (statusBadge(cell.data.status); as b) {
@@ -161,6 +165,30 @@
         }
         @if (journalIndicator(cell.data); as dot) {
           <span class="{{ dot.cls }}" [title]="dot.title" aria-label="Journal status indicator"></span>
+        }
+      </div>
+      <!-- Times render local, seconds dropped: the second-granular time is noise
+           in a dense grid; the detail panel shows exact stamps. -->
+      <div *dxTemplate="let cell of 'timeCell'">
+        @if (cell.value) {
+          {{ cell.value | date:'MM/dd HH:mm' }}
+        } @else {
+          <span class="cell-empty" title="Not recorded (import predates the journal framework or still processing)">—</span>
+        }
+      </div>
+      <div *dxTemplate="let cell of 'idRangeCell'">
+        <span class="id-range" title="Range of target-table IDs created by this import (audit/revert scoping).">
+          {{ formatIdRange(cell.data) }}
+        </span>
+      </div>
+      <div *dxTemplate="let cell of 'snapshotCell'">
+        @if (snapshotChips(cell.data); as chips) {
+          @for (chip of chips; track chip.label) {
+            <span class="snapshot-chip" [title]="chip.title">{{ chip.label }}</span>
+          }
+          @if (chips.length === 0) {
+            <span class="cell-empty" title="No config snapshots (import predates the journal framework).">—</span>
+          }
         }
       </div>
     </dx-data-grid>
@@ -187,6 +215,23 @@
               @if (statusBadge(b.status); as bb) { <span class="badge {{ bb.cls }}">{{ bb.label }}</span> }
               &middot; total {{ b.totalRows }} &middot; processed {{ b.processedRows }} &middot; rejected {{ b.skippedRows }}
             </p>
+            <p class="detail-timing">
+              @if (b.startedAt) {
+                Started {{ b.startedAt | date:'MM/dd/yyyy, HH:mm:ss' }}
+                @if (b.completedAt) {
+                  &middot; completed {{ b.completedAt | date:'HH:mm:ss' }}
+                  @if (formatDuration(b); as dur) {
+                    <span class="detail-duration" [title]="'Processing wall-clock time'">(&#9201; {{ dur }})</span>
+                  }
+                } @else {
+                  &middot; <span class="detail-running">in progress&hellip;</span>
+                }
+              } @else {
+                <span class="cell-empty" title="Pre-framework batch: no processing timestamps were recorded.">Timing not recorded</span>
+              }
+              &middot; impacted IDs
+              <span class="id-range" title="Range of target-table IDs created by this import.">{{ formatIdRange(b) }}</span>
+            </p>
             @if (journalProgressText(b); as journalText) {
               <p class="detail-journal-progress" [class.detail-journal-incomplete]="b.journalIncomplete">
                 {{ journalText }}
@@ -196,6 +241,43 @@
         </div>
         <dx-button text="Close" (onClick)="closeDetail()"></dx-button>
       </header>
+
+      <!-- Config snapshots (tier-1 audit evidence): collapsed by default, loaded
+           once per batch open. Download gives the exact JSON for audit hand-off. -->
+      <section class="snapshots">
+        <header class="snapshots-header">
+          <h3>Config snapshots</h3>
+          @if (batchDetailLoading()) {
+            <dx-load-indicator [visible]="true" hint="Loading snapshots&hellip;"></dx-load-indicator>
+          } @else if (batchDetail(); as d) {
+            <div class="snapshots-actions">
+              @if (d.mappingSnapshotJson) {
+                <button class="payload-toggle" [class.active]="showMappingSnapshot()" (click)="toggleMappingSnapshot()" type="button">
+                  <lucide-icon [name]="showMappingSnapshot() ? 'eye-off' : 'eye'" [size]="14"></lucide-icon>
+                  {{ showMappingSnapshot() ? 'Hide mapping snapshot' : 'Show mapping snapshot' }}
+                </button>
+                <dx-button stylingMode="text" text="Download" icon="download" (onClick)="downloadSnapshot('mapping')"></dx-button>
+              }
+              @if (d.rulesSnapshotJson) {
+                <button class="payload-toggle" [class.active]="showRulesSnapshot()" (click)="toggleRulesSnapshot()" type="button">
+                  <lucide-icon [name]="showRulesSnapshot() ? 'eye-off' : 'eye'" [size]="14"></lucide-icon>
+                  {{ showRulesSnapshot() ? 'Hide rules snapshot' : 'Show rules snapshot' }}
+                </button>
+                <dx-button stylingMode="text" text="Download" icon="download" (onClick)="downloadSnapshot('rules')"></dx-button>
+              }
+              @if (!d.mappingSnapshotJson && !d.rulesSnapshotJson) {
+                <span class="cell-empty" title="This import ran before the journal framework.">No snapshots recorded (pre-framework batch).</span>
+              }
+            </div>
+          }
+        </header>
+        @if (showMappingSnapshot() && batchDetail()?.mappingSnapshotJson; as mappingJson) {
+          <pre class="payload snapshot-block">{{ formatJson(mappingJson) }}</pre>
+        }
+        @if (showRulesSnapshot() && batchDetail()?.rulesSnapshotJson; as rulesJson) {
+          <pre class="payload snapshot-block">{{ formatJson(rulesJson) }}</pre>
+        }
+      </section>
 
       <!-- Journal filter toolbar -->
       <div class="filter-toolbar">
@@ -247,7 +329,7 @@
           <tbody>
             @for (entry of journalFiltered(); track entry.id) {
               <tr>
-                <td class="row-num">{{ entry.sourceKey }}</td>
+                <td class="row-num" [title]="entry.rowNumber ? 'Source file row ' + entry.rowNumber : 'Pre-framework row — source provenance: ' + entry.sourceKey">{{ rowDisplay(entry) }}</td>
                 <td>
                   @if (journalStatusBadge(entry.status); as b) {
                     <span class="badge {{ b.cls }}">{{ b.label }}</span>
@@ -258,7 +340,7 @@
                     <div class="error-msg">{{ entry.errorMessage }}</div>
                   }
                   @if (entry.payload && journalShowPayload()) {
-                    <pre class="payload">{{ formatPayload(entry.payload) }}</pre>
+                    <pre class="payload">{{ formatJson(entry.payload) }}</pre>
                   }
                 </td>
               </tr>

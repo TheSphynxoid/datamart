@@ -223,6 +223,9 @@ public class ImportFileValidator
             {
                 ImportBatchId = 0, // Validation does not persist; placeholder for the in-memory record.
                 SourceKey = rowNumber.ToString(),
+                // Typed 1-based source-file row (journal framework tier 2) — keeps the
+                // dry-run report on the same typed fact as the real import's journal.
+                RowNumber = rowNumber,
                 Status = skipRow ? ImportRowStatus.Rejected : ImportRowStatus.Imported,
                 // Same truncation as the executor so both paths report identical
                 // messages for the same row (the column is capped at 2000 in EF).

@@ -15,5 +15,9 @@ public class ImportRecordConfiguration : IEntityTypeConfiguration<ImportRecord>
         // (rows are bounded), keep it as text.
         builder.Property(t => t.ErrorMessage).HasMaxLength(ImportRecord.MaxErrorMessageLength);
         builder.Property(t => t.Status).HasConversion<int>();
+
+        // Journal framework (spec §7): the drill-down's stable sort/filter —
+        // every page of the journal reads the batch's rows in source order.
+        builder.HasIndex(r => new { r.ImportBatchId, r.RowNumber });
     }
 }

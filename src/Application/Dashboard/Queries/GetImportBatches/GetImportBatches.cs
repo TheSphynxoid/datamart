@@ -22,7 +22,16 @@ public record ImportBatchListItemDto(
     bool JournalIncomplete,
     string? FailedReason,
     string? ExecutedBy,
-    DateTimeOffset Created);
+    DateTimeOffset Created,
+    // Journal framework tier-1 facts (spec §6): the batch list IS the primary
+    // journal surface. Snapshots ship as indicators only — the payloads stay on
+    // the detail query so a page of batches never carries up to 2 MB of JSON each.
+    DateTimeOffset? StartedAt,
+    DateTimeOffset? CompletedAt,
+    int? MinImpactedId,
+    int? MaxImpactedId,
+    bool HasMappingSnapshot,
+    bool HasRulesSnapshot);
 
 public record ImportBatchesPage(int Page, int PageSize, int TotalCount, IReadOnlyList<ImportBatchListItemDto> Items);
 
@@ -94,7 +103,13 @@ public class GetImportBatchesQueryHandler : IRequestHandler<GetImportBatchesQuer
                 b.JournalIncomplete,
                 b.FailedReason,
                 b.ExecutedBy,
-                b.Created))
+                b.Created,
+                b.StartedAt,
+                b.CompletedAt,
+                b.MinImpactedId,
+                b.MaxImpactedId,
+                b.MappingSnapshotJson != null,
+                b.RulesSnapshotJson != null))
             .ToListAsync(cancellationToken);
 
         return new ImportBatchesPage(page, pageSize, totalCount, items);

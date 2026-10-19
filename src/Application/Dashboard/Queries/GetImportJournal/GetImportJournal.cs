@@ -14,6 +14,7 @@ namespace DataMart.Application.Dashboard.Queries.GetImportJournal;
 public record ImportJournalEntryDto(
     int Id,
     string SourceKey,
+    int? RowNumber,
     ImportRowStatus Status,
     string? ErrorMessage,
     string? Payload,
@@ -59,13 +60,18 @@ public class GetImportJournalQueryHandler : IRequestHandler<GetImportJournalQuer
         var totalCount = await q.CountAsync(cancellationToken);
 
         var items = await q
-            .OrderBy(r => r.Created)
+            // Order by the typed source-file row number (journal framework spec §6):
+            // stable and meaningful to the user, unlike Created (bulk-stamped) or Id
+            // (journal upload order). Null RowNumber = pre-framework row; Postgres
+            // sorts nulls last in ASC, so legacy rows trail the current data.
+            .OrderBy(r => r.RowNumber)
             .ThenBy(r => r.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(r => new ImportJournalEntryDto(
                 r.Id,
                 r.SourceKey ?? string.Empty,
+                r.RowNumber,
                 r.Status,
                 r.ErrorMessage,
                 r.Payload,

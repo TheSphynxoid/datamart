@@ -40,13 +40,13 @@ public class GetImportReportQueryHandler : IRequestHandler<GetImportReportQuery,
 
         var errors = await _context.ImportRecords
             .Where(r => r.ImportBatchId == request.Id && r.Status == ImportRowStatus.Rejected)
-            .OrderBy(r => r.SourceKey)
-            .Select(r => new { r.SourceKey, r.ErrorMessage })
+            .OrderBy(r => r.RowNumber)
+            .Select(r => new { r.RowNumber, r.ErrorMessage })
             .ToListAsync(cancellationToken);
 
         var reportErrors = errors
             .Select(r => new ImportReportError(
-                int.TryParse(r.SourceKey, out var n) ? n : 0,
+                r.RowNumber ?? 0,
                 r.ErrorMessage ?? string.Empty))
             .ToList();
 

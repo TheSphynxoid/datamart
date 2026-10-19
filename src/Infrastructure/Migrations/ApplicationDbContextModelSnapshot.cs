@@ -273,6 +273,9 @@ namespace DataMart.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("ControlTotalsJson")
                         .HasColumnType("text");
 
@@ -297,6 +300,9 @@ namespace DataMart.Infrastructure.Migrations
                     b.Property<int?>("ImportBatchId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("JournalExtrasJson")
+                        .HasColumnType("text");
+
                     b.Property<bool>("JournalIncomplete")
                         .HasColumnType("boolean");
 
@@ -314,6 +320,15 @@ namespace DataMart.Infrastructure.Migrations
                     b.Property<bool>("LegalHold")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("MappingSnapshotJson")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("MaxImpactedId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("MinImpactedId")
+                        .HasColumnType("integer");
+
                     b.Property<int>("ProcessedRows")
                         .HasColumnType("integer");
 
@@ -324,6 +339,9 @@ namespace DataMart.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("RevertedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RulesSnapshotJson")
                         .HasColumnType("text");
 
                     b.Property<int>("SkippedRows")
@@ -338,6 +356,9 @@ namespace DataMart.Infrastructure.Migrations
 
                     b.Property<string>("SourceKey")
                         .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -384,6 +405,9 @@ namespace DataMart.Infrastructure.Migrations
                     b.Property<string>("Payload")
                         .HasColumnType("text");
 
+                    b.Property<int?>("RowNumber")
+                        .HasColumnType("integer");
+
                     b.Property<string>("SourceKey")
                         .HasColumnType("text");
 
@@ -392,7 +416,7 @@ namespace DataMart.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ImportBatchId");
+                    b.HasIndex("ImportBatchId", "RowNumber");
 
                     b.ToTable("ImportRecords");
                 });

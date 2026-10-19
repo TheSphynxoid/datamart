@@ -107,6 +107,10 @@ export interface IDashboardClient {
      */
     batches(page: number | undefined, pageSize: number | undefined, status: number | undefined, affectedTable: string | undefined, from: Date | undefined, to: Date | undefined, search: string | undefined): Observable<ImportBatchesPage>;
     /**
+     * @return OK
+     */
+    detail(id: number): Observable<BatchDetailDto>;
+    /**
      * @param page (optional) 
      * @param pageSize (optional) 
      * @param status (optional) 
@@ -267,6 +271,72 @@ export class DashboardClient implements IDashboardClient {
             let result200: any = null;
             let resultData200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver);
             result200 = ImportBatchesPage.fromJS(resultData200);
+            return _observableOf(result200);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Bad Request", status, _responseText, _headers);
+            }));
+        } else if (status === 401) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Unauthorized", status, _responseText, _headers);
+            }));
+        } else if (status === 403) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Forbidden", status, _responseText, _headers);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    detail(id: number): Observable<BatchDetailDto> {
+        let url_ = this.baseUrl + "/api/Dashboard/batches/{id}/detail";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processDetail(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processDetail(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<BatchDetailDto>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<BatchDetailDto>;
+        }));
+    }
+
+    protected processDetail(response: HttpResponseBase): Observable<BatchDetailDto> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            let resultData200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver);
+            result200 = BatchDetailDto.fromJS(resultData200);
             return _observableOf(result200);
             }));
         } else if (status === 400) {
@@ -2485,6 +2555,134 @@ export interface IAntiforgeryTokenDto {
     [key: string]: any;
 }
 
+export class BatchDetailDto implements IBatchDetailDto {
+    id!: number;
+    fileName!: string;
+    affectedTable!: string;
+    status!: number;
+    totalRows!: number;
+    processedRows!: number;
+    skippedRows!: number;
+    journalRowsWritten!: number;
+    journalIncomplete!: boolean;
+    skippedRowsPreview!: string | undefined;
+    failedReason!: string | undefined;
+    executedBy!: string | undefined;
+    created!: Date;
+    startedAt!: Date | undefined;
+    completedAt!: Date | undefined;
+    minImpactedId!: number | undefined;
+    maxImpactedId!: number | undefined;
+    controlTotalsJson!: string | undefined;
+    mappingSnapshotJson!: string | undefined;
+    rulesSnapshotJson!: string | undefined;
+    journalExtrasJson!: string | undefined;
+
+    [key: string]: any;
+
+    constructor(data?: IBatchDetailDto) {
+        if (data) {
+            for (var property in data) {
+                if (data.hasOwnProperty(property))
+                    (this as any)[property] = (data as any)[property];
+            }
+        }
+    }
+
+    init(_data?: any) {
+        if (_data) {
+            for (var property in _data) {
+                if (_data.hasOwnProperty(property))
+                    this[property] = _data[property];
+            }
+            this.id = _data["id"];
+            this.fileName = _data["fileName"];
+            this.affectedTable = _data["affectedTable"];
+            this.status = _data["status"];
+            this.totalRows = _data["totalRows"];
+            this.processedRows = _data["processedRows"];
+            this.skippedRows = _data["skippedRows"];
+            this.journalRowsWritten = _data["journalRowsWritten"];
+            this.journalIncomplete = _data["journalIncomplete"];
+            this.skippedRowsPreview = _data["skippedRowsPreview"];
+            this.failedReason = _data["failedReason"];
+            this.executedBy = _data["executedBy"];
+            this.created = _data["created"] ? new Date(_data["created"].toString()) : undefined as any;
+            this.startedAt = _data["startedAt"] ? new Date(_data["startedAt"].toString()) : undefined as any;
+            this.completedAt = _data["completedAt"] ? new Date(_data["completedAt"].toString()) : undefined as any;
+            this.minImpactedId = _data["minImpactedId"];
+            this.maxImpactedId = _data["maxImpactedId"];
+            this.controlTotalsJson = _data["controlTotalsJson"];
+            this.mappingSnapshotJson = _data["mappingSnapshotJson"];
+            this.rulesSnapshotJson = _data["rulesSnapshotJson"];
+            this.journalExtrasJson = _data["journalExtrasJson"];
+        }
+    }
+
+    static fromJS(data: any): BatchDetailDto {
+        data = typeof data === 'object' ? data : {};
+        let result = new BatchDetailDto();
+        result.init(data);
+        return result;
+    }
+
+    toJSON(data?: any) {
+        data = typeof data === 'object' ? data : {};
+        for (var property in this) {
+            if (this.hasOwnProperty(property))
+                data[property] = this[property];
+        }
+        data["id"] = this.id;
+        data["fileName"] = this.fileName;
+        data["affectedTable"] = this.affectedTable;
+        data["status"] = this.status;
+        data["totalRows"] = this.totalRows;
+        data["processedRows"] = this.processedRows;
+        data["skippedRows"] = this.skippedRows;
+        data["journalRowsWritten"] = this.journalRowsWritten;
+        data["journalIncomplete"] = this.journalIncomplete;
+        data["skippedRowsPreview"] = this.skippedRowsPreview;
+        data["failedReason"] = this.failedReason;
+        data["executedBy"] = this.executedBy;
+        data["created"] = this.created ? this.created.toISOString() : undefined as any;
+        data["startedAt"] = this.startedAt ? this.startedAt.toISOString() : undefined as any;
+        data["completedAt"] = this.completedAt ? this.completedAt.toISOString() : undefined as any;
+        data["minImpactedId"] = this.minImpactedId;
+        data["maxImpactedId"] = this.maxImpactedId;
+        data["controlTotalsJson"] = this.controlTotalsJson;
+        data["mappingSnapshotJson"] = this.mappingSnapshotJson;
+        data["rulesSnapshotJson"] = this.rulesSnapshotJson;
+        data["journalExtrasJson"] = this.journalExtrasJson;
+        return data;
+    }
+}
+
+export interface IBatchDetailDto {
+    id: number;
+    fileName: string;
+    affectedTable: string;
+    status: number;
+    totalRows: number;
+    processedRows: number;
+    skippedRows: number;
+    journalRowsWritten: number;
+    journalIncomplete: boolean;
+    skippedRowsPreview: string | undefined;
+    failedReason: string | undefined;
+    executedBy: string | undefined;
+    created: Date;
+    startedAt: Date | undefined;
+    completedAt: Date | undefined;
+    minImpactedId: number | undefined;
+    maxImpactedId: number | undefined;
+    controlTotalsJson: string | undefined;
+    mappingSnapshotJson: string | undefined;
+    rulesSnapshotJson: string | undefined;
+    journalExtrasJson: string | undefined;
+
+    [key: string]: any;
+}
+
 export class ColumnMappingDto implements IColumnMappingDto {
     columnName!: string;
     columnType!: string | undefined;
@@ -3302,6 +3500,12 @@ export class ImportBatchListItemDto implements IImportBatchListItemDto {
     failedReason!: string | undefined;
     executedBy!: string | undefined;
     created!: Date;
+    startedAt!: Date | undefined;
+    completedAt!: Date | undefined;
+    minImpactedId!: number | undefined;
+    maxImpactedId!: number | undefined;
+    hasMappingSnapshot!: boolean;
+    hasRulesSnapshot!: boolean;
 
     [key: string]: any;
 
@@ -3332,6 +3536,12 @@ export class ImportBatchListItemDto implements IImportBatchListItemDto {
             this.failedReason = _data["failedReason"];
             this.executedBy = _data["executedBy"];
             this.created = _data["created"] ? new Date(_data["created"].toString()) : undefined as any;
+            this.startedAt = _data["startedAt"] ? new Date(_data["startedAt"].toString()) : undefined as any;
+            this.completedAt = _data["completedAt"] ? new Date(_data["completedAt"].toString()) : undefined as any;
+            this.minImpactedId = _data["minImpactedId"];
+            this.maxImpactedId = _data["maxImpactedId"];
+            this.hasMappingSnapshot = _data["hasMappingSnapshot"];
+            this.hasRulesSnapshot = _data["hasRulesSnapshot"];
         }
     }
 
@@ -3360,6 +3570,12 @@ export class ImportBatchListItemDto implements IImportBatchListItemDto {
         data["failedReason"] = this.failedReason;
         data["executedBy"] = this.executedBy;
         data["created"] = this.created ? this.created.toISOString() : undefined as any;
+        data["startedAt"] = this.startedAt ? this.startedAt.toISOString() : undefined as any;
+        data["completedAt"] = this.completedAt ? this.completedAt.toISOString() : undefined as any;
+        data["minImpactedId"] = this.minImpactedId;
+        data["maxImpactedId"] = this.maxImpactedId;
+        data["hasMappingSnapshot"] = this.hasMappingSnapshot;
+        data["hasRulesSnapshot"] = this.hasRulesSnapshot;
         return data;
     }
 }
@@ -3377,6 +3593,12 @@ export interface IImportBatchListItemDto {
     failedReason: string | undefined;
     executedBy: string | undefined;
     created: Date;
+    startedAt: Date | undefined;
+    completedAt: Date | undefined;
+    minImpactedId: number | undefined;
+    maxImpactedId: number | undefined;
+    hasMappingSnapshot: boolean;
+    hasRulesSnapshot: boolean;
 
     [key: string]: any;
 }
@@ -3448,6 +3670,7 @@ export interface IImportBatchPreviewDto {
 export class ImportJournalEntryDto implements IImportJournalEntryDto {
     id!: number;
     sourceKey!: string;
+    rowNumber!: number;
     status!: number;
     errorMessage!: string | undefined;
     payload!: string | undefined;
@@ -3472,6 +3695,7 @@ export class ImportJournalEntryDto implements IImportJournalEntryDto {
             }
             this.id = _data["id"];
             this.sourceKey = _data["sourceKey"];
+            this.rowNumber = _data["rowNumber"];
             this.status = _data["status"];
             this.errorMessage = _data["errorMessage"];
             this.payload = _data["payload"];
@@ -3494,6 +3718,7 @@ export class ImportJournalEntryDto implements IImportJournalEntryDto {
         }
         data["id"] = this.id;
         data["sourceKey"] = this.sourceKey;
+        data["rowNumber"] = this.rowNumber;
         data["status"] = this.status;
         data["errorMessage"] = this.errorMessage;
         data["payload"] = this.payload;
@@ -3505,6 +3730,7 @@ export class ImportJournalEntryDto implements IImportJournalEntryDto {
 export interface IImportJournalEntryDto {
     id: number;
     sourceKey: string;
+    rowNumber: number;
     status: number;
     errorMessage: string | undefined;
     payload: string | undefined;

@@ -1,3 +1,4 @@
+using DataMart.Application.Dashboard.Queries.GetBatchDetail;
 using DataMart.Application.Dashboard.Queries.GetImportBatches;
 using DataMart.Application.Dashboard.Queries.GetImportJournal;
 using DataMart.Application.Dashboard.Queries.GetImportStatistics;
@@ -17,6 +18,7 @@ public class Dashboard : IEndpointGroup
 
         groupBuilder.MapGet("statistics", GetStatistics);
         groupBuilder.MapGet("batches", GetBatches);
+        groupBuilder.MapGet("batches/{id:int}/detail", GetBatchDetail);
         groupBuilder.MapGet("batches/{id:int}/journal", GetJournal);
     }
 
@@ -37,6 +39,15 @@ public class Dashboard : IEndpointGroup
         [FromQuery] string? search = null)
     {
         var result = await sender.Send(new GetImportBatchesQuery(page, pageSize, status, affectedTable, from, to, search));
+        return TypedResults.Ok(result);
+    }
+
+    public static async Task<Ok<BatchDetailDto>> GetBatchDetail(ISender sender, int id)
+    {
+        // The detail query returns the tier-1 record including the snapshot
+        // payloads (audit view of the exact config the import ran on); the
+        // handler throws NotFound for unknown ids -> 404 via ProblemDetails.
+        var result = await sender.Send(new GetBatchDetailQuery(id));
         return TypedResults.Ok(result);
     }
 

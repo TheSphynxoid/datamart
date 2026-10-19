@@ -79,6 +79,47 @@ public class ImportBatch : BaseAuditableEntity
     /// what the wizard and the dashboard expose as the failure cause.</summary>
     public string? FailedReason { get; set; }
 
+    // Journal framework (V2 build item 1) — tier-1 facts. Spec: docs/specs/journal-framework.md §3.
+
+    /// <summary>Hard cap for <see cref="MappingSnapshotJson"/> and
+    /// <see cref="RulesSnapshotJson"/> (spec §9.1): a snapshot is stored complete
+    /// or the batch fails before processing — never truncated, so the audit
+    /// value stays binary (complete copy or no import). 1 MB of UTF-8 bytes is
+    /// far above any realistic mapping/rule set (tens of KB). The cap counts
+    /// bytes, not chars: accented names and currency symbols are exactly the
+    /// content this tool imports, and they cost up to 4 bytes per char.</summary>
+    public const int MaxSnapshotJsonBytes = 1_000_000;
+
+    /// <summary>Processing start (the executor begins). Distinct from
+    /// <see cref="BaseAuditableEntity.Created"/> (batch-row creation: upload accept time).</summary>
+    public DateTimeOffset? StartedAt { get; private set; }
+
+    /// <summary>Set when the batch reaches a terminal status (Success/Failed); null while
+    /// Processing. Revert is stamped by <see cref="RevertedAt"/> instead.</summary>
+    public DateTimeOffset? CompletedAt { get; private set; }
+
+    /// <summary>Full copy of the effective mapping (column mappings + format options)
+    /// at import time. A copy, not an FK — mappings are editable; the snapshot makes
+    /// "import always ran on the config the user saw validated" provable after the fact.
+    /// Null on pre-framework batches.</summary>
+    public string? MappingSnapshotJson { get; private set; }
+
+    /// <summary>Copy of the active <see cref="EntityValidationRule"/> set for the target
+    /// entity, as evaluated at import time (same rationale as the mapping snapshot).
+    /// Null on pre-framework batches.</summary>
+    public string? RulesSnapshotJson { get; private set; }
+
+    /// <summary>Range of target-table IDs the batch created (fed from the COPY step).
+    /// Gaps are acceptable — a range claim for audit/revert scoping, not an enumeration.
+    /// Null on pre-framework batches or empty imports.</summary>
+    public int? MinImpactedId { get; private set; }
+    public int? MaxImpactedId { get; private set; }
+
+    /// <summary>Extensible bag for future per-import facts without schema churn.
+    /// Convention: writers write whole-object JSON (camelCase keys); readers
+    /// tolerate missing keys.</summary>
+    public string? JournalExtrasJson { get; private set; }
+
     public ICollection<ImportRecord> Records { get; set; } = [];
 
     // Reconciliation & Audit (FC-1, FC-2)
@@ -115,6 +156,58 @@ public class ImportBatch : BaseAuditableEntity
     public void SetLegalHold(bool hold) => LegalHold = hold; // Legal hold can be toggled anytime
     public void SetRetentionExpiresAt(DateTimeOffset? expiresAt) => RetentionExpiresAt = expiresAt;
 
+    /// <summary>Marks the start of processing and stores the import-time config
+    /// snapshots. Set-once: a second call throws (the executor calls it exactly
+    /// once). Enforces the snapshot size cap — over the cap throws and stores
+    /// nothing, so the executor's failure path lands the batch in Failed with
+    /// the cap as the reason instead of persisting a truncated snapshot.</summary>
+    public void MarkStarted(string? mappingSnapshotJson, string? rulesSnapshotJson)
+    {
+        ThrowIfImmutable();
+        if (StartedAt is not null)
+            throw new InvalidOperationException("MarkStarted has already been called for this batch; snapshots are set once at start.");
+
+        ThrowIfSnapshotOverCap(mappingSnapshotJson, "Mapping");
+        ThrowIfSnapshotOverCap(rulesSnapshotJson, "Rules");
+
+        MappingSnapshotJson = mappingSnapshotJson;
+        RulesSnapshotJson = rulesSnapshotJson;
+        StartedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>Processing → Success; stamps <see cref="CompletedAt"/>.</summary>
+    public void Complete()
+    {
+        EnsureProcessing(nameof(Complete));
+        _status = ImportStatus.Success;
+        CompletedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>Processing → Failed; stamps <see cref="CompletedAt"/> and the failure motif.</summary>
+    public void Fail(string reason)
+    {
+        EnsureProcessing(nameof(Fail));
+        _status = ImportStatus.Failed;
+        FailedReason = reason;
+        CompletedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>Records the range of target-table IDs created by the COPY step.
+    /// Audit/revert scoping claim (gaps acceptable), immutable after a terminal status.</summary>
+    public void SetImpactedIdRange(int? minImpactedId, int? maxImpactedId)
+    {
+        ThrowIfImmutable();
+        MinImpactedId = minImpactedId;
+        MaxImpactedId = maxImpactedId;
+    }
+
+    /// <summary>Replaces the journal extras bag with a whole-object JSON payload.</summary>
+    public void SetJournalExtras(string journalExtrasJson)
+    {
+        ThrowIfImmutable();
+        JournalExtrasJson = journalExtrasJson;
+    }
+
     public void Revert(string userId)
     {
         if (_status == ImportStatus.Reverted)
@@ -129,5 +222,18 @@ public class ImportBatch : BaseAuditableEntity
     {
         if (_status is ImportStatus.Success or ImportStatus.Failed or ImportStatus.Reverted)
             throw new InvalidOperationException($"Cannot modify audit fields after batch status is {_status}.");
+    }
+
+    private void EnsureProcessing(string operation)
+    {
+        if (_status != ImportStatus.Processing)
+            throw new InvalidOperationException($"{operation} is only valid while Processing; batch is {_status}.");
+    }
+
+    private static void ThrowIfSnapshotOverCap(string? snapshotJson, string snapshotName)
+    {
+        if (snapshotJson is not null && Encoding.UTF8.GetByteCount(snapshotJson) > MaxSnapshotJsonBytes)
+            throw new InvalidOperationException(
+                $"{snapshotName} snapshot exceeds the {MaxSnapshotJsonBytes:N0}-byte cap; refusing to store a truncated snapshot.");
     }
 }

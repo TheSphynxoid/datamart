@@ -387,3 +387,83 @@
   max-height: 8rem;
   overflow: auto;
 }
+
+// ── Journal framework: tier-1 cells, timing line, snapshot section ────────────
+
+// A quiet "not recorded" dash — muted but discoverable via its tooltip.
+.cell-empty {
+  color: var(--dx-texteditor-color-label, #adb5bd);
+  font-style: italic;
+}
+
+.snapshot-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  padding: 0.05rem 0.3rem;
+  margin-right: 0.25rem;
+  border-radius: 0.3rem;
+  background: color-mix(in srgb, var(--dx-color-success, #28a745) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--dx-color-success, #28a745) 40%, transparent);
+  color: color-mix(in srgb, var(--dx-color-success, #28a745) 80%, var(--dx-color-text));
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: help;
+}
+
+.id-range {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.detail-timing {
+  margin: 0.3rem 0 0;
+  color: var(--dx-texteditor-color-label);
+  font-size: 0.85rem;
+}
+
+.detail-duration {
+  color: color-mix(in srgb, var(--dx-color-primary) 75%, var(--dx-color-text));
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.detail-running {
+  color: var(--dx-color-primary);
+  font-weight: 500;
+}
+
+// Snapshot section inside the batch detail panel.
+.snapshots {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--dx-color-border);
+  border-radius: var(--dx-border-radius);
+  background: var(--dx-base-background-color, var(--dx-component-color-bg));
+}
+
+.snapshots-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+
+  h3 {
+    margin: 0;
+    font-size: 0.95rem;
+  }
+}
+
+.snapshots-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.snapshot-block {
+  max-height: 18rem;
+  margin-top: 0.5rem;
+}

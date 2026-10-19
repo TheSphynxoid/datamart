@@ -46,8 +46,8 @@ public class DashboardFilterTests : IAsyncLifetime
     {
         var startedA = await SendImportAsync("alpha-batch.xlsx");
         var startedB = await SendImportAsync("beta-batch.xlsx");
-        await WaitForBatchTerminalAsync(startedA.BatchId);
-        await WaitForBatchTerminalAsync(startedB.BatchId);
+        await BatchTerminalWaiter.WaitForBatchTerminalAsync(startedA.BatchId);
+        await BatchTerminalWaiter.WaitForBatchTerminalAsync(startedB.BatchId);
 
         var result = await TestApp.SendAsync(new GetImportBatchesQuery(Search: "ALPHA"));
         result.Items.ShouldHaveSingleItem();
@@ -61,7 +61,7 @@ public class DashboardFilterTests : IAsyncLifetime
     public async Task Search_EmptyString_ReturnsAll()
     {
         var startedA = await SendImportAsync("one.xlsx");
-        await WaitForBatchTerminalAsync(startedA.BatchId);
+        await BatchTerminalWaiter.WaitForBatchTerminalAsync(startedA.BatchId);
 
         var result = await TestApp.SendAsync(new GetImportBatchesQuery(Search: ""));
         result.TotalCount.ShouldBeGreaterThanOrEqualTo(1);
@@ -74,7 +74,7 @@ public class DashboardFilterTests : IAsyncLifetime
     public async Task Search_NoMatch_ReturnsEmpty()
     {
         var started = await SendImportAsync("solo.xlsx");
-        await WaitForBatchTerminalAsync(started.BatchId);
+        await BatchTerminalWaiter.WaitForBatchTerminalAsync(started.BatchId);
 
         var result = await TestApp.SendAsync(new GetImportBatchesQuery(Search: "no-such-file"));
         result.Items.ShouldBeEmpty();
@@ -88,7 +88,7 @@ public class DashboardFilterTests : IAsyncLifetime
     public async Task Status_Filter_Success_ExcludesProcessingAndFailed()
     {
         var started = await SendImportAsync("ok.xlsx");
-        await WaitForBatchTerminalAsync(started.BatchId);
+        await BatchTerminalWaiter.WaitForBatchTerminalAsync(started.BatchId);
 
         var successOnly = await TestApp.SendAsync(new GetImportBatchesQuery(Status: ImportStatus.Success));
         successOnly.Items.ShouldContain(b => b.Id == started.BatchId);
@@ -104,7 +104,7 @@ public class DashboardFilterTests : IAsyncLifetime
     public async Task AffectedTable_Filter_ReturnsOnlyMatching()
     {
         var started = await SendImportAsync("ok.xlsx");
-        await WaitForBatchTerminalAsync(started.BatchId);
+        await BatchTerminalWaiter.WaitForBatchTerminalAsync(started.BatchId);
 
         var result = await TestApp.SendAsync(new GetImportBatchesQuery(AffectedTable: TargetEntity));
         result.Items.ShouldContain(b => b.Id == started.BatchId);
@@ -120,7 +120,7 @@ public class DashboardFilterTests : IAsyncLifetime
     public async Task DateRange_FromInFuture_ReturnsEmpty()
     {
         var started = await SendImportAsync("ok.xlsx");
-        await WaitForBatchTerminalAsync(started.BatchId);
+        await BatchTerminalWaiter.WaitForBatchTerminalAsync(started.BatchId);
 
         var future = DateTimeOffset.UtcNow.AddDays(7);
         var result = await TestApp.SendAsync(new GetImportBatchesQuery(From: future));
@@ -131,7 +131,7 @@ public class DashboardFilterTests : IAsyncLifetime
     public async Task DateRange_FromInPast_IncludesAll()
     {
         var started = await SendImportAsync("ok.xlsx");
-        await WaitForBatchTerminalAsync(started.BatchId);
+        await BatchTerminalWaiter.WaitForBatchTerminalAsync(started.BatchId);
 
         var past = DateTimeOffset.UtcNow.AddDays(-7);
         var result = await TestApp.SendAsync(new GetImportBatchesQuery(From: past));
@@ -145,7 +145,7 @@ public class DashboardFilterTests : IAsyncLifetime
     public async Task Search_CombinedWithStatus_ReturnsIntersection()
     {
         var started = await SendImportAsync("combined.xlsx");
-        await WaitForBatchTerminalAsync(started.BatchId);
+        await BatchTerminalWaiter.WaitForBatchTerminalAsync(started.BatchId);
 
         var result = await TestApp.SendAsync(new GetImportBatchesQuery(
             Search: "combined",
@@ -172,7 +172,7 @@ public class DashboardFilterTests : IAsyncLifetime
         using var stream = new MemoryStream(bytes);
         var started = await TestApp.SendAsync(new ImportFileCommand(
             stream, $"journal-status-{Guid.NewGuid():N}.xlsx", _mappingId, EmptyFieldMode.SkipRow, null));
-        await WaitForBatchTerminalAsync(started.BatchId);
+        await BatchTerminalWaiter.WaitForBatchTerminalAsync(started.BatchId);
 
         var imported = await TestApp.SendAsync(new GetImportJournalQuery(
             started.BatchId, Status: ImportRowStatus.Imported));
@@ -195,7 +195,7 @@ public class DashboardFilterTests : IAsyncLifetime
         using var stream = new MemoryStream(bytes);
         var started = await TestApp.SendAsync(new ImportFileCommand(
             stream, $"journal-all-{Guid.NewGuid():N}.xlsx", _mappingId, EmptyFieldMode.SkipRow, null));
-        await WaitForBatchTerminalAsync(started.BatchId);
+        await BatchTerminalWaiter.WaitForBatchTerminalAsync(started.BatchId);
 
         var all = await TestApp.SendAsync(new GetImportJournalQuery(started.BatchId));
         all.TotalCount.ShouldBe(10);
@@ -233,16 +233,5 @@ public class DashboardFilterTests : IAsyncLifetime
             stream, fileName, _mappingId, EmptyFieldMode.SkipRow, null));
     }
 
-    private static async Task WaitForBatchTerminalAsync(int batchId, int timeoutSeconds = 30)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
-        while (DateTime.UtcNow < deadline)
-        {
-            var batch = await TestApp.FindAsync<ImportBatch>(batchId);
-            if (batch is not null && batch.Status != ImportStatus.Processing)
-                return;
-            await Task.Delay(200);
-        }
-        throw new TimeoutException($"Batch {batchId} did not reach a terminal state within {timeoutSeconds}s.");
-    }
 }
+
