@@ -1,9 +1,11 @@
 import { Component, OnDestroy, OnInit, signal, computed, effect } from '@angular/core';
+import { Router } from '@angular/router';
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
-import { DashboardClient, ImportStatisticsDto, ImportBatchListItemDto, ImportBatchesPage, ImportJournalEntryDto, ImportJournalPage, BatchDetailDto, ImportJournalSummaryDto } from '../web-api-client';
+import { DashboardClient, ImportStatisticsDto, ImportBatchListItemDto, ImportBatchesPage } from '../web-api-client';
 import { MappingEndpointsClient, MappingDto } from '../web-api-client';
 import { PollerHandle, startPoller } from '../util/poll';
+import { batchStatusBadge } from '../util/batch-view';
 
 @Component({
   standalone: false,
@@ -64,35 +66,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     { label: 'All time',  getRange: () => [null, null] as [Date | null, Date | null] },
   ];
 
-  protected readonly selectedBatchId = signal<number | null>(null);
-
-  // Grouped journal drill-down (tier 2): imported rows collapse into one box
-  // (their entries would be identical); rejections group by stable error code
-  // — same issue, same box. Expanding a box loads its rows paginated on demand;
-  // nothing ever loads all rows of a batch.
-  protected readonly journalSummary = signal<ImportJournalSummaryDto | null>(null);
-  protected readonly journalSummaryLoading = signal(false);
-  protected readonly importedExpanded = signal(false);
-  protected readonly importedPage = signal<ImportJournalPage | null>(null);
-  protected readonly expandedGroups = signal<string[]>([]);
-  // Rows per expanded group, keyed by the group's error code; null = load failed.
-  protected readonly groupPages = signal<Record<string, ImportJournalPage | null>>({});
-
-  // Page size for the rows shown inside an expanded journal box.
-  private static readonly JournalBoxPageSize = 20;
-
-  // Batch detail (tier-1 record incl. snapshot payloads): fetched once when a
-  // batch is opened — never polled, snapshots are immutable after terminal status.
-  protected readonly batchDetail = signal<BatchDetailDto | null>(null);
-  protected readonly batchDetailLoading = signal(false);
-  // Snapshot views are collapsed by default (progressive disclosure): the JSON
-  // blocks are audit evidence, not information the common "how did it go" scan needs.
-  protected readonly showMappingSnapshot = signal(false);
-  protected readonly showRulesSnapshot = signal(false);
-
-  // Journal payload visibility (shared by every expanded box).
-  protected readonly journalShowPayload = signal(false);
-
   protected readonly mappings = signal<MappingDto[]>([]);
 
   // Distinct target tables for the table filter — taken from the saved mappings.
@@ -138,26 +111,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   private pollHandle: PollerHandle | null = null;
 
-  // Derived: the currently selected batch's summary line (file, table, status, rows).
-  protected readonly selectedBatch = computed(() => {
-    const id = this.selectedBatchId();
-    if (id === null) return null;
-    return this.batches().find(b => b.id === id) ?? null;
-  });
-
   // Status badge metadata for cells (label + css class).
   protected statusBadge(status: number): { label: string; cls: string } {
-    switch (status) {
-      case DashboardComponent.StatusSuccess: return { label: 'Success', cls: 'badge-success' };
-      case DashboardComponent.StatusFailed: return { label: 'Failed', cls: 'badge-failed' };
-      case DashboardComponent.StatusProcessing: return { label: 'Processing', cls: 'badge-processing' };
-      default: return { label: 'Reverted', cls: 'badge-reverted' };
-    }
+    return batchStatusBadge(status);
   }
 
   // Journal sub-state indicator for the table cell. Returns the kind of dot to
   // render next to the status badge, or null when no indicator is needed.
-  // The full "(N / M)" progress text lives in the batch detail panel header.
+  // The full "(N / M)" progress text lives on the batch journal page.
   protected journalIndicator(batch: ImportBatchListItemDto): { cls: string; title: string } | null {
     if (batch.journalIncomplete) {
       return {
@@ -175,11 +136,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   // Compact text chips for the per-batch config snapshots (tier-1 list). Letter
-  // chips + tooltips keep the cell small; the full JSON lives in the detail panel.
+  // chips + tooltips keep the cell small; the full JSON lives on the journal page.
   protected snapshotChips(batch: { hasMappingSnapshot: boolean; hasRulesSnapshot: boolean }): { label: string; title: string }[] {
     const chips: { label: string; title: string }[] = [];
-    if (batch.hasMappingSnapshot) chips.push({ label: 'M', title: 'Mapping snapshot available — open the batch for the full JSON.' });
-    if (batch.hasRulesSnapshot) chips.push({ label: 'R', title: 'Rules snapshot available — open the batch for the full JSON.' });
+    if (batch.hasMappingSnapshot) chips.push({ label: 'M', title: 'Mapping snapshot available — open the batch journal for the full JSON.' });
+    if (batch.hasRulesSnapshot) chips.push({ label: 'R', title: 'Rules snapshot available — open the batch journal for the full JSON.' });
     return chips;
   }
 
@@ -188,69 +149,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   protected formatIdRange(range: { minImpactedId: number | null | undefined; maxImpactedId: number | null | undefined }): string {
     if (range.minImpactedId == null || range.maxImpactedId == null) return '—';
     return `${range.minImpactedId.toLocaleString()}–${range.maxImpactedId.toLocaleString()}`;
-  }
-
-  // Wall-clock duration between processing start and completion, humanized
-  // ("42s", "1m 12s"). Null while Processing or for pre-framework batches.
-  protected formatDuration(detail: { startedAt: string | Date | null; completedAt: string | Date | null }): string | null {
-    if (!detail.startedAt || !detail.completedAt) return null;
-    const seconds = (new Date(detail.completedAt).getTime() - new Date(detail.startedAt).getTime()) / 1000;
-    if (!isFinite(seconds) || seconds < 0) return null;
-    if (seconds < 60) return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
-    const minutes = Math.floor(seconds / 60);
-    return `${minutes}m ${Math.round(seconds - minutes * 60)}s`;
-  }
-
-  // Journal drill-down row label: the typed source-file row number; legacy
-  // (pre-framework) rows have none, so fall back to their provenance string.
-  protected rowDisplay(entry: ImportJournalEntryDto): string {
-    return entry.rowNumber ? entry.rowNumber.toLocaleString() : entry.sourceKey;
-  }
-
-  // Full journal progress text for the batch detail panel header. Returns null
-  // when there's nothing extra to show (journal complete or batch not Success).
-  protected journalProgressText(batch: ImportBatchListItemDto): string | null {
-    if (batch.journalIncomplete) {
-      return `Journal incomplete: ${batch.journalRowsWritten.toLocaleString()} of ${batch.totalRows.toLocaleString()} rows uploaded. The remaining rows cannot be recovered (the source file was deleted).`;
-    }
-    if (batch.status === DashboardComponent.StatusSuccess && batch.journalRowsWritten < batch.totalRows) {
-      return `Journal uploading: ${batch.journalRowsWritten.toLocaleString()} of ${batch.totalRows.toLocaleString()} rows.`;
-    }
-    return null;
-  }
-
-  protected journalStatusBadge(status: number): { label: string; cls: string } {
-    return status === DashboardComponent.RowRejected
-      ? { label: 'Rejected', cls: 'badge-failed' }
-      : { label: 'Imported', cls: 'badge-success' };
-  }
-
-  // Pretty-print a JSON block (row payloads, snapshots) for a <pre>. Falls
-  // back to the raw string if parsing fails or it's empty.
-  protected formatJson(raw: string | null | undefined): string {
-    if (!raw) return '';
-    try {
-      const obj = JSON.parse(raw);
-      return JSON.stringify(obj, null, 2);
-    } catch {
-      return raw;
-    }
-  }
-
-  // Download a snapshot JSON as a file (audit hand-off: regulators get the exact
-  // config copy without copy-pasting from the screen).
-  protected downloadSnapshot(kind: 'mapping' | 'rules'): void {
-    const detail = this.batchDetail();
-    if (!detail) return;
-    const raw = kind === 'mapping' ? detail.mappingSnapshotJson : detail.rulesSnapshotJson;
-    if (!raw) return;
-    const blob = new Blob([raw], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `batch-${detail.id}-${kind}-snapshot.json`;
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   // Two-way binding helpers for the search input — bound to a plain string signal
@@ -304,13 +202,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.batchesPage.set(1);
   }
 
-  protected toggleJournalPayload(): void {
-    this.journalShowPayload.update(v => !v);
-  }
-
   constructor(
     private readonly dashboardClient: DashboardClient,
-    private readonly mappingClient: MappingEndpointsClient
+    private readonly mappingClient: MappingEndpointsClient,
+    private readonly router: Router
   ) {
     // React to any filter or pagination change by re-fetching. We use an effect
     // so we don't have to remember to call loadBatches() from every handler.
@@ -439,114 +334,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   protected onBatchRowClick(event: { data?: ImportBatchListItemDto }): void {
     const batch = event.data;
     if (!batch) return;
-    this.selectedBatchId.set(batch.id);
-    this.resetJournalState();
-    this.batchDetail.set(null);
-    this.showMappingSnapshot.set(false);
-    this.showRulesSnapshot.set(false);
-    this.loadJournalSummary();
-    this.loadBatchDetail();
-  }
-
-  private resetJournalState(): void {
-    this.journalSummary.set(null);
-    this.journalSummaryLoading.set(false);
-    this.importedExpanded.set(false);
-    this.importedPage.set(null);
-    this.expandedGroups.set([]);
-    this.groupPages.set({});
-    this.journalShowPayload.set(false);
-  }
-
-  protected toggleMappingSnapshot(): void {
-    this.showMappingSnapshot.update(v => !v);
-  }
-
-  protected toggleRulesSnapshot(): void {
-    this.showRulesSnapshot.update(v => !v);
-  }
-
-  protected loadBatchDetail(): void {
-    const batchId = this.selectedBatchId();
-    if (batchId === null) return;
-    this.batchDetailLoading.set(true);
-    this.dashboardClient.detail(batchId).subscribe({
-      next: detail => { this.batchDetail.set(detail); this.batchDetailLoading.set(false); },
-      error: () => { this.batchDetail.set(null); this.batchDetailLoading.set(false); }
-    });
-  }
-
-  protected loadJournalSummary(): void {
-    const batchId = this.selectedBatchId();
-    if (batchId === null) return;
-    this.journalSummaryLoading.set(true);
-    this.dashboardClient.summary(batchId).subscribe({
-      next: summary => { this.journalSummary.set(summary); this.journalSummaryLoading.set(false); },
-      error: () => { this.journalSummary.set(null); this.journalSummaryLoading.set(false); }
-    });
-  }
-
-  protected toggleImportedRows(): void {
-    if (this.importedExpanded()) {
-      this.importedExpanded.set(false);
-      return;
-    }
-    this.importedExpanded.set(true);
-    if (!this.importedPage()) this.loadImportedRows(1);
-  }
-
-  protected loadImportedRows(page: number): void {
-    const batchId = this.selectedBatchId();
-    if (batchId === null) return;
-    this.dashboardClient.journal(batchId, page, DashboardComponent.JournalBoxPageSize, DashboardComponent.RowImported, undefined)
-      .subscribe({
-        next: p => this.importedPage.set(p),
-        error: () => this.importedPage.set(null),
-      });
-  }
-
-  protected isGroupExpanded(errorCode: string): boolean {
-    return this.expandedGroups().includes(errorCode);
-  }
-
-  protected toggleGroup(errorCode: string): void {
-    if (this.isGroupExpanded(errorCode)) {
-      this.expandedGroups.update(list => list.filter(c => c !== errorCode));
-      return;
-    }
-    this.expandedGroups.update(list => [...list, errorCode]);
-    // Load on first expand; re-expands reuse the loaded page.
-    if (!(errorCode in this.groupPages())) this.loadGroupRows(errorCode, 1);
-  }
-
-  protected loadGroupRows(errorCode: string, page: number): void {
-    const batchId = this.selectedBatchId();
-    if (batchId === null) return;
-    this.dashboardClient.journal(batchId, page, DashboardComponent.JournalBoxPageSize, DashboardComponent.RowRejected, errorCode)
-      .subscribe({
-        next: p => this.groupPages.update(map => ({ ...map, [errorCode]: p })),
-        error: () => this.groupPages.update(map => ({ ...map, [errorCode]: null })),
-      });
-  }
-
-  protected groupPage(errorCode: string, delta: number): void {
-    const p = this.groupPages()[errorCode];
-    if (!p) return;
-    const next = p.page + delta;
-    if (next < 1 || next > this.maxPage(p)) return;
-    this.loadGroupRows(errorCode, next);
-  }
-
-  protected maxPage(p: ImportJournalPage): number {
-    return Math.max(1, Math.ceil(p.totalCount / p.pageSize));
-  }
-
-  protected closeDetail(): void {
-    this.selectedBatchId.set(null);
-    this.resetJournalState();
-    this.batchDetail.set(null);
-    this.showMappingSnapshot.set(false);
-    this.showRulesSnapshot.set(false);
+    // The batch journal (tier-1 record + grouped tier-2 drill-down) lives on its
+    // own page — the dashboard stays a list surface.
+    this.router.navigate(['/journal', batch.id]);
   }
 
   private daysAgo(days: number): Date {

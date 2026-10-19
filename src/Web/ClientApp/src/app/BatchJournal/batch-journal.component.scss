@@ -1,0 +1,297 @@
+:host {
+  display: block;
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+
+  h1 {
+    margin: 0 0 0.35rem;
+  }
+}
+
+.page-subtitle {
+  margin: 0;
+  color: var(--dx-texteditor-color-label, #6c757d);
+  font-size: 0.92rem;
+}
+
+.page-timing {
+  margin: 0.3rem 0 0;
+  color: var(--dx-texteditor-color-label, #6c757d);
+  font-size: 0.85rem;
+}
+
+.page-duration {
+  color: color-mix(in srgb, var(--dx-color-primary) 75%, var(--dx-color-text));
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.page-running {
+  color: var(--dx-color-primary);
+  font-weight: 500;
+}
+
+// A quiet "not recorded" note — muted but discoverable via its tooltip.
+.page-empty {
+  color: var(--dx-texteditor-color-label, #adb5bd);
+  font-style: italic;
+}
+
+.back-link {
+  align-self: flex-start;
+  white-space: nowrap;
+  color: var(--dx-color-primary);
+  text-decoration: none;
+
+  &:hover { text-decoration: underline; }
+}
+
+// Journal-progress banner (uploading / audit-gap).
+.journal-progress {
+  margin: 0.4rem 0 0;
+  padding: 0.4rem 0.7rem;
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, var(--dx-color-primary, #007bff) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--dx-color-primary, #007bff) 35%, transparent);
+  color: var(--dx-color-primary, #007bff);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.journal-progress.journal-progress-incomplete {
+  background: color-mix(in srgb, var(--dx-color-danger, #dc3545) 14%, transparent);
+  border-color: color-mix(in srgb, var(--dx-color-danger, #dc3545) 45%, transparent);
+  color: var(--dx-color-danger, #dc3545);
+}
+
+// Status badges (same visual language as the dashboard).
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
+  border: 1px solid transparent;
+}
+.badge-success {
+  background: color-mix(in srgb, var(--dx-color-success, #28a745) 18%, transparent);
+  color: var(--dx-color-success, #28a745);
+  border-color: color-mix(in srgb, var(--dx-color-success, #28a745) 45%, transparent);
+}
+.badge-failed {
+  background: color-mix(in srgb, var(--dx-color-danger, #dc3545) 18%, transparent);
+  color: var(--dx-color-danger, #dc3545);
+  border-color: color-mix(in srgb, var(--dx-color-danger, #dc3545) 45%, transparent);
+}
+.badge-processing {
+  background: color-mix(in srgb, var(--dx-color-primary, #007bff) 18%, transparent);
+  color: var(--dx-color-primary, #007bff);
+  border-color: color-mix(in srgb, var(--dx-color-primary, #007bff) 45%, transparent);
+}
+.badge-reverted {
+  background: color-mix(in srgb, #6f42c1 18%, transparent);
+  color: #6f42c1;
+  border-color: color-mix(in srgb, #6f42c1 45%, transparent);
+}
+
+// ── Snapshots ────────────────────────────────────────────────────────────────
+.snapshots {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--dx-color-border);
+  border-radius: var(--dx-border-radius, 0.25rem);
+  background: var(--dx-base-background-color, var(--dx-component-color-bg));
+}
+
+.snapshots-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+
+  h2 {
+    margin: 0;
+    font-size: 1.05rem;
+  }
+}
+
+.snapshots-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.snapshot-block {
+  max-height: 18rem;
+  margin-top: 0.5rem;
+}
+
+// ── Grouped journal ──────────────────────────────────────────────────────────
+.journal-section {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--dx-color-border);
+  border-radius: var(--dx-border-radius, 0.25rem);
+  background: var(--dx-component-color-bg);
+}
+
+.journal-section-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+
+  h2 {
+    margin: 0;
+    font-size: 1.05rem;
+  }
+}
+
+.journal-section-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.journal-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.journal-group {
+  border: 1px solid var(--dx-color-border);
+  border-radius: var(--dx-border-radius);
+  overflow: hidden;
+}
+
+.journal-group-imported {
+  border-color: color-mix(in srgb, var(--dx-color-success, #28a745) 30%, var(--dx-color-border));
+}
+
+.journal-group-rejected {
+  border-color: color-mix(in srgb, var(--dx-color-danger, #dc3545) 30%, var(--dx-color-border));
+}
+
+.journal-group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: transparent;
+  color: var(--dx-color-text);
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--dx-color-primary) 6%, transparent);
+  }
+}
+
+.journal-group-count {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.journal-group-message {
+  color: color-mix(in srgb, var(--dx-color-danger) 80%, var(--dx-color-text));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.journal-group .journal-table {
+  margin: 0 0.5rem 0.5rem;
+  width: calc(100% - 1rem);
+}
+
+.journal-paging {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.25rem 0.75rem 0.5rem;
+  color: var(--dx-texteditor-color-label);
+  font-size: 0.85rem;
+}
+
+.journal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+
+  th, td {
+    border: 1px solid var(--dx-color-border, #e0e0e0);
+    padding: 0.4rem 0.5rem;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th {
+    background: var(--dx-component-color-bg, #f5f5f5);
+    font-weight: 600;
+  }
+}
+
+.row-num {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: right;
+  width: 80px;
+}
+
+.error-msg {
+  color: color-mix(in srgb, var(--dx-color-danger) 80%, var(--dx-color-text));
+  font-weight: 500;
+}
+
+.payload {
+  background: color-mix(in srgb, var(--dx-base-background-color, var(--dx-component-color-bg)) 60%, var(--dx-component-color-bg));
+  color: var(--dx-color-text);
+  border: 1px solid var(--dx-color-border);
+  border-radius: 0.25rem;
+  padding: 0.4rem 0.5rem;
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 8rem;
+  overflow: auto;
+}
+
+.placeholder {
+  margin: 0;
+  color: var(--dx-texteditor-color-label, #6c757d);
+  font-style: italic;
+}
+
+.total-count {
+  margin: 0.5rem 0 0;
+  color: var(--dx-texteditor-color-label, #6c757d);
+  font-size: 0.85rem;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  color: var(--dx-texteditor-color-label, #6c757d);
+
+  p { margin: 0; }
+}

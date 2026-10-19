@@ -239,18 +239,6 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
       }
     });
 
-    effect(() => {
-      if (this.currentStepId() === 'map' && this.mapping() === null) {
-        this.autoMatchMapping();
-      }
-    });
-
-    effect(() => {
-      if (this.currentStepId() === 'map' && this.selectedEntity()) {
-        this.loadSavedMappings();
-      }
-    });
-
     // Rules are per-entity and read-only in the wizard: reload whenever the
     // target changes so steps 4-5 always describe the rules that will judge
     // this import. Inactive rules are excluded (activeOnly).
@@ -346,6 +334,7 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
     const next = this.steps[index + 1];
     if (next) {
       this.currentStepId.set(next.id);
+      if (next.id === 'map') this.enterMap();
     }
   }
 
@@ -364,6 +353,17 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
       }
     }
     this.currentStepId.set(this.steps[index].id);
+    if (this.steps[index].id === 'map') this.enterMap();
+  }
+
+  // Entering the Map step builds the mapping SYNCHRONOUSLY when missing — a
+  // scheduled effect was racy here and the panel could first render empty —
+  // and (re)loads the saved mappings for the current entity.
+  private enterMap(): void {
+    if (this.mapping() === null) {
+      this.autoMatchMapping();
+    }
+    this.loadSavedMappings();
   }
 
   private commitDraftOf(index: number): void {

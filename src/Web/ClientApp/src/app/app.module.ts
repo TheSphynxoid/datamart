@@ -2,7 +2,7 @@ import { APP_ID, NgModule, inject, provideAppInitializer } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { LucideAngularModule, Sun, Moon, Laptop, Plus, Settings, MoreHorizontal, Menu, Home, Upload, CheckCircle, AlertTriangle, AlertCircle, Info, X, Eye, EyeOff, Search } from 'lucide-angular';
+import { LucideAngularModule, Sun, Moon, Laptop, Plus, Settings, MoreHorizontal, Menu, Home, Upload, CheckCircle, AlertTriangle, AlertCircle, Info, X, Eye, EyeOff, Search, ChevronDown, ChevronRight, CornerDownRight } from 'lucide-angular';
 import { HTTP_INTERCEPTORS, provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 import { AppComponent } from './app.component';
@@ -19,6 +19,7 @@ import { AuthService } from 'src/api-authorization/auth.service';
 
 import { FileUploadComponent } from './file-upload/file-upload.component';
 import { ExcelMapComponent } from './Excelmap/excelmap.component';
+import { BatchJournalComponent } from './BatchJournal/batch-journal.component';
 import { ReportErrorsComponent } from './report-errors/report-errors.component';
 import { EntityRulesComponent } from './entity-rules/entity-rules.component';
 import { RuleListComponent } from './entity-rules/rule-list.component';
@@ -53,6 +54,7 @@ export function getApiBaseUrl(): string {
         RegisterComponent,
         FileUploadComponent,
         ExcelMapComponent,
+        BatchJournalComponent,
         ReportErrorsComponent,
         EntityRulesComponent,
         RuleListComponent
@@ -76,12 +78,13 @@ export function getApiBaseUrl(): string {
         DxDropDownButtonModule,
         DxDateBoxModule,
         DxDropDownBoxModule,
-        LucideAngularModule.pick({ Sun, Moon, Laptop, Plus, Settings, MoreHorizontal, Menu, Home, Upload, CheckCircle, AlertTriangle, AlertCircle, Info, X, Eye, EyeOff, Search }),
+        LucideAngularModule.pick({ Sun, Moon, Laptop, Plus, Settings, MoreHorizontal, Menu, Home, Upload, CheckCircle, AlertTriangle, AlertCircle, Info, X, Eye, EyeOff, Search, ChevronDown, ChevronRight, CornerDownRight }),
         RouterModule.forRoot([
             { path: '', component: DashboardComponent, pathMatch: 'full', canActivate: [AuthGuard] },
             { path: 'login', component: LoginComponent },
             { path: 'register', component: RegisterComponent },
             { path: 'excelmap', component: ExcelMapComponent, canActivate: [AuthGuard] },
+            { path: 'journal/:id', component: BatchJournalComponent, canActivate: [AuthGuard] },
             { path: 'rules', component: EntityRulesComponent, canActivate: [AuthGuard] }
         ])
     ],

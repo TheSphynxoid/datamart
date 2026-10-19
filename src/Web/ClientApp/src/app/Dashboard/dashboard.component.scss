@@ -1,4 +1,4 @@
-:host {
+﻿:host {
   display: block;
 }
 
@@ -76,7 +76,7 @@
 .metric-failed     { color: color-mix(in srgb, var(--dx-color-danger) 80%, var(--dx-color-text)); }
 .metric-processing { color: color-mix(in srgb, var(--dx-color-primary) 80%, var(--dx-color-text)); }
 
-/* Status / journal badges — theme-aware via DX tokens.
+/* Status / journal badges â€” theme-aware via DX tokens.
    Text color uses the saturated token directly (no mix with --dx-color-text,
    which is light in dark mode and would dilute the color into gray-white). */
 .badge {
@@ -110,7 +110,7 @@
 }
 
 /* Minimal in-cell indicator for batches whose journal is still uploading
-   (or marked JournalIncomplete). Just a small dot, no text — the cell stays
+   (or marked JournalIncomplete). Just a small dot, no text â€” the cell stays
    small and the full progress text lives in the batch detail panel header. */
 .journal-indicator {
   display: inline-block;
@@ -137,42 +137,6 @@
   font-size: 0.85rem;
 }
 
-/* Detail (journal) panel */
-.detail-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
-}
-
-.detail-header h2 {
-  margin: 0 0 0.25rem;
-}
-
-.detail-subtitle {
-  margin: 0;
-  color: var(--dx-texteditor-color-label);
-  font-size: 0.9rem;
-}
-
-.detail-journal-progress {
-  margin: 0.4rem 0 0;
-  padding: 0.4rem 0.7rem;
-  border-radius: 0.35rem;
-  background: color-mix(in srgb, var(--dx-color-primary, #007bff) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--dx-color-primary, #007bff) 35%, transparent);
-  color: var(--dx-color-primary, #007bff);
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-.detail-journal-progress.detail-journal-incomplete {
-  background: color-mix(in srgb, var(--dx-color-danger, #dc3545) 14%, transparent);
-  border-color: color-mix(in srgb, var(--dx-color-danger, #dc3545) 45%, transparent);
-  color: var(--dx-color-danger, #dc3545);
-}
-
-// ── Panel header + filter toolbar ──────────────────────────────────────────────
 .panel-header {
   display: flex;
   flex-wrap: wrap;
@@ -342,55 +306,8 @@
   }
 }
 
-.journal-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.88rem;
-}
 
-.journal-table th,
-.journal-table td {
-  border: 1px solid var(--dx-color-border, #e0e0e0);
-  padding: 0.4rem 0.5rem;
-  text-align: left;
-  vertical-align: top;
-}
-
-.journal-table th {
-  background: var(--dx-component-color-bg, #f5f5f5);
-  font-weight: 600;
-}
-
-.row-num {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  text-align: right;
-  width: 80px;
-}
-
-.error-msg {
-  color: color-mix(in srgb, var(--dx-color-danger) 80%, var(--dx-color-text));
-  font-weight: 500;
-  margin-bottom: 0.25rem;
-}
-
-.payload {
-  background: color-mix(in srgb, var(--dx-base-background-color, var(--dx-component-color-bg)) 60%, var(--dx-component-color-bg));
-  color: var(--dx-color-text);
-  border: 1px solid var(--dx-color-border);
-  border-radius: 0.25rem;
-  padding: 0.4rem 0.5rem;
-  margin: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.78rem;
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 8rem;
-  overflow: auto;
-}
-
-// ── Journal framework: tier-1 cells, timing line, snapshot section ────────────
-
-// A quiet "not recorded" dash — muted but discoverable via its tooltip.
+// A quiet "not recorded" dash - muted but discoverable via its tooltip.
 .cell-empty {
   color: var(--dx-texteditor-color-label, #adb5bd);
   font-style: italic;
@@ -416,134 +333,4 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.82rem;
   white-space: nowrap;
-}
-
-.detail-timing {
-  margin: 0.3rem 0 0;
-  color: var(--dx-texteditor-color-label);
-  font-size: 0.85rem;
-}
-
-.detail-duration {
-  color: color-mix(in srgb, var(--dx-color-primary) 75%, var(--dx-color-text));
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.detail-running {
-  color: var(--dx-color-primary);
-  font-weight: 500;
-}
-
-// Snapshot section inside the batch detail panel.
-.snapshots {
-  margin: 0 0 1rem;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid var(--dx-color-border);
-  border-radius: var(--dx-border-radius);
-  background: var(--dx-base-background-color, var(--dx-component-color-bg));
-}
-
-.snapshots-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 1rem;
-
-  h3 {
-    margin: 0;
-    font-size: 0.95rem;
-  }
-}
-
-.snapshots-actions {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.snapshot-block {
-  max-height: 18rem;
-  margin-top: 0.5rem;
-}
-
-// ── Grouped journal drill-down ────────────────────────────────────────────────
-// Imported rows collapse into one box (identical entries); rejections group by
-// stable error code — same issue, same box. Boxes expand to paginated rows.
-
-.journal-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 0.5rem;
-}
-
-.journal-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.journal-group {
-  border: 1px solid var(--dx-color-border);
-  border-radius: var(--dx-border-radius);
-  overflow: hidden;
-}
-
-.journal-group-imported {
-  border-color: color-mix(in srgb, var(--dx-color-success, #28a745) 30%, var(--dx-color-border));
-}
-
-.journal-group-rejected {
-  border-color: color-mix(in srgb, var(--dx-color-danger, #dc3545) 30%, var(--dx-color-border));
-}
-
-.journal-group-header {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  border: none;
-  background: transparent;
-  color: var(--dx-color-text);
-  font: inherit;
-  font-size: 0.88rem;
-  text-align: left;
-  cursor: pointer;
-
-  &:hover {
-    background: color-mix(in srgb, var(--dx-color-primary) 6%, transparent);
-  }
-}
-
-.journal-group-count {
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.journal-group-hint {
-  color: var(--dx-texteditor-color-label, #6c757d);
-  font-size: 0.8rem;
-}
-
-.journal-group-message {
-  color: color-mix(in srgb, var(--dx-color-danger) 80%, var(--dx-color-text));
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.journal-group .journal-table {
-  margin: 0 0.5rem 0.5rem;
-  width: calc(100% - 1rem);
-}
-
-.journal-paging {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.25rem 0.75rem 0.5rem;
-  color: var(--dx-texteditor-color-label);
-  font-size: 0.85rem;
 }

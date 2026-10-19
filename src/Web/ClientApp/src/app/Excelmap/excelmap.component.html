@@ -387,6 +387,12 @@
               (onClick)="confirmMapping()">
             </dx-button>
           </div>
+        } @else {
+          <div class="empty-state">
+            <lucide-icon name="info" [size]="22"></lucide-icon>
+            <p>No columns to map yet &mdash; upload a file in the previous step.</p>
+            <dx-button text="Back to upload" type="normal" (onClick)="editStep(1)"></dx-button>
+          </div>
         }
       }
       @case ('preview') {
@@ -507,7 +513,7 @@
           }
         } @else if (importResult(); as result) {
           @if (result.success) {
-            <p class="success"><lucide-icon name="check-circle" [size]="16"></lucide-icon> Import complete. Batch #{{ result.batchId }}</p>
+            <p class="success"><lucide-icon name="check-circle" [size]="16"></lucide-icon> Import complete. <a [routerLink]="['/journal', result.batchId]">Batch #{{ result.batchId }} &mdash; open journal</a></p>
             @if (result.importedRows !== undefined) {
               <p><small>{{ result.importedRows }} rows imported.</small></p>
             }

@@ -69,10 +69,11 @@ describe('ExcelMapComponent — wizard navigation & step invalidation', () => {
   function commitFakeFile(): void {
     const file = new File([], 'fake.xlsx');
     component['draftFile'].set(file);
-    component['confirmFile']();
-    // The worker parse would fill these; simulate its outcome.
+    // The worker parse completes BEFORE the user confirms (preview is visible
+    // in the upload panel), so the columns exist when confirmFile runs.
     component['excelColumns'].set(['TransactionId', 'Amount', 'BookedAt']);
     component['previewRows'].set([{ TransactionId: 1, Amount: 10, BookedAt: '2024-01-01' }]);
+    component['confirmFile']();
   }
 
   it('map step auto-matches against the FIRST selected entity', async () => {

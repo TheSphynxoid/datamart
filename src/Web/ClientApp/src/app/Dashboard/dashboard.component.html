@@ -1,4 +1,4 @@
-<section class="dashboard">
+﻿<section class="dashboard">
   <header class="dashboard-header">
     <h1>Import Dashboard</h1>
     <p class="subtitle">Operations overview for Excel data imports.</p>
@@ -173,7 +173,7 @@
         @if (cell.value) {
           {{ cell.value | date:'MM/dd HH:mm' }}
         } @else {
-          <span class="cell-empty" title="Not recorded (import predates the journal framework or still processing)">—</span>
+          <span class="cell-empty" title="Not recorded (import predates the journal framework or still processing)">â€”</span>
         }
       </div>
       <div *dxTemplate="let cell of 'idRangeCell'">
@@ -187,7 +187,7 @@
             <span class="snapshot-chip" [title]="chip.title">{{ chip.label }}</span>
           }
           @if (chips.length === 0) {
-            <span class="cell-empty" title="No config snapshots (import predates the journal framework).">—</span>
+            <span class="cell-empty" title="No config snapshots (import predates the journal framework).">â€”</span>
           }
         }
       </div>
@@ -201,216 +201,6 @@
       }
     </p>
   </section>
-
-  <!-- Journal detail (visible when a batch is selected) -->
-  @if (selectedBatchId() !== null) {
-    <section class="panel detail">
-      <header class="detail-header">
-        <div>
-          <h2>Batch #{{ selectedBatchId() }} — journal</h2>
-          @if (selectedBatch(); as b) {
-            <p class="detail-subtitle">
-              <strong>{{ b.fileName }}</strong> &rarr; {{ b.affectedTable }}
-              &middot; status:
-              @if (statusBadge(b.status); as bb) { <span class="badge {{ bb.cls }}">{{ bb.label }}</span> }
-              &middot; total {{ b.totalRows }} &middot; processed {{ b.processedRows }} &middot; rejected {{ b.skippedRows }}
-            </p>
-            <p class="detail-timing">
-              @if (b.startedAt) {
-                Started {{ b.startedAt | date:'MM/dd/yyyy, HH:mm:ss' }}
-                @if (b.completedAt) {
-                  &middot; completed {{ b.completedAt | date:'HH:mm:ss' }}
-                  @if (formatDuration(b); as dur) {
-                    <span class="detail-duration" [title]="'Processing wall-clock time'">(&#9201; {{ dur }})</span>
-                  }
-                } @else {
-                  &middot; <span class="detail-running">in progress&hellip;</span>
-                }
-              } @else {
-                <span class="cell-empty" title="Pre-framework batch: no processing timestamps were recorded.">Timing not recorded</span>
-              }
-              &middot; impacted IDs
-              <span class="id-range" title="Range of target-table IDs created by this import.">{{ formatIdRange(b) }}</span>
-            </p>
-            @if (journalProgressText(b); as journalText) {
-              <p class="detail-journal-progress" [class.detail-journal-incomplete]="b.journalIncomplete">
-                {{ journalText }}
-              </p>
-            }
-          }
-        </div>
-        <dx-button text="Close" (onClick)="closeDetail()"></dx-button>
-      </header>
-
-      <!-- Config snapshots (tier-1 audit evidence): collapsed by default, loaded
-           once per batch open. Download gives the exact JSON for audit hand-off. -->
-      <section class="snapshots">
-        <header class="snapshots-header">
-          <h3>Config snapshots</h3>
-          @if (batchDetailLoading()) {
-            <dx-load-indicator [visible]="true" hint="Loading snapshots&hellip;"></dx-load-indicator>
-          } @else if (batchDetail(); as d) {
-            <div class="snapshots-actions">
-              @if (d.mappingSnapshotJson) {
-                <button class="payload-toggle" [class.active]="showMappingSnapshot()" (click)="toggleMappingSnapshot()" type="button">
-                  <lucide-icon [name]="showMappingSnapshot() ? 'eye-off' : 'eye'" [size]="14"></lucide-icon>
-                  {{ showMappingSnapshot() ? 'Hide mapping snapshot' : 'Show mapping snapshot' }}
-                </button>
-                <dx-button stylingMode="text" text="Download" icon="download" (onClick)="downloadSnapshot('mapping')"></dx-button>
-              }
-              @if (d.rulesSnapshotJson) {
-                <button class="payload-toggle" [class.active]="showRulesSnapshot()" (click)="toggleRulesSnapshot()" type="button">
-                  <lucide-icon [name]="showRulesSnapshot() ? 'eye-off' : 'eye'" [size]="14"></lucide-icon>
-                  {{ showRulesSnapshot() ? 'Hide rules snapshot' : 'Show rules snapshot' }}
-                </button>
-                <dx-button stylingMode="text" text="Download" icon="download" (onClick)="downloadSnapshot('rules')"></dx-button>
-              }
-              @if (!d.mappingSnapshotJson && !d.rulesSnapshotJson) {
-                <span class="cell-empty" title="This import ran before the journal framework.">No snapshots recorded (pre-framework batch).</span>
-              }
-            </div>
-          }
-        </header>
-        @if (showMappingSnapshot() && batchDetail()?.mappingSnapshotJson; as mappingJson) {
-          <pre class="payload snapshot-block">{{ formatJson(mappingJson) }}</pre>
-        }
-        @if (showRulesSnapshot() && batchDetail()?.rulesSnapshotJson; as rulesJson) {
-          <pre class="payload snapshot-block">{{ formatJson(rulesJson) }}</pre>
-        }
-      </section>
-
-      <!-- Journal drill-down (tier 2, grouped): imported rows collapse into one
-           box — row-by-row entries would be identical. Rejections group by
-           stable error code: same issue, same box. Expanding a box loads its
-           rows (paginated) on demand; nothing ever loads all rows of a batch. -->
-      <div class="journal-toolbar">
-        <button
-          class="payload-toggle"
-          [class.active]="journalShowPayload()"
-          (click)="toggleJournalPayload()"
-          type="button">
-          <lucide-icon [name]="journalShowPayload() ? 'eye-off' : 'eye'" [size]="14"></lucide-icon>
-          {{ journalShowPayload() ? 'Hide payloads' : 'Show payloads' }}
-        </button>
-      </div>
-
-      @if (journalSummaryLoading()) {
-        <dx-load-indicator [visible]="true" hint="Loading journal&hellip;"></dx-load-indicator>
-      } @else if (journalSummary(); as s) {
-        <div class="journal-groups">
-          @if (s.importedRows > 0) {
-            <div class="journal-group journal-group-imported">
-              <button
-                class="journal-group-header"
-                type="button"
-                (click)="toggleImportedRows()"
-                [attr.aria-expanded]="importedExpanded()">
-                <lucide-icon [name]="importedExpanded() ? 'chevron-down' : 'chevron-right'" [size]="16"></lucide-icon>
-                <span class="badge badge-success">Imported</span>
-                <span class="journal-group-count">{{ s.importedRows | number }} row(s)</span>
-                <span class="journal-group-hint">collapsed &mdash; identical outcome; expand to inspect</span>
-              </button>
-              @if (importedExpanded()) {
-                @if (importedPage(); as ip) {
-                  <table class="journal-table">
-                    <thead>
-                      <tr>
-                        <th style="width: 80px">Row</th>
-                        <th>Payload</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (entry of ip.items; track entry.id) {
-                        <tr>
-                          <td class="row-num" [title]="entry.rowNumber ? 'Source file row ' + entry.rowNumber : 'Pre-framework row — source provenance: ' + entry.sourceKey">{{ rowDisplay(entry) }}</td>
-                          <td>
-                            @if (entry.payload && journalShowPayload()) {
-                              <pre class="payload">{{ formatJson(entry.payload) }}</pre>
-                            }
-                          </td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                  <div class="journal-paging">
-                    <dx-button text="Prev" stylingMode="text" [disabled]="ip.page <= 1" (onClick)="loadImportedRows(ip.page - 1)"></dx-button>
-                    <span>Page {{ ip.page }} of {{ maxPage(ip) }}</span>
-                    <dx-button text="Next" stylingMode="text" [disabled]="ip.page >= maxPage(ip)" (onClick)="loadImportedRows(ip.page + 1)"></dx-button>
-                  </div>
-                } @else {
-                  <dx-load-indicator [visible]="true" hint="Loading rows&hellip;"></dx-load-indicator>
-                }
-              }
-            </div>
-          }
-
-          @for (g of s.rejectionGroups; track g.errorCode) {
-            <div class="journal-group journal-group-rejected">
-              <button
-                class="journal-group-header"
-                type="button"
-                (click)="toggleGroup(g.errorCode)"
-                [attr.aria-expanded]="isGroupExpanded(g.errorCode)"
-                [title]="'Issue: ' + g.errorCode">
-                <lucide-icon [name]="isGroupExpanded(g.errorCode) ? 'chevron-down' : 'chevron-right'" [size]="16"></lucide-icon>
-                <span class="badge badge-failed">Rejected</span>
-                <span class="journal-group-count">{{ g.count }} row(s)</span>
-                <span class="journal-group-message">{{ g.message }}</span>
-              </button>
-              @if (isGroupExpanded(g.errorCode)) {
-                @if (groupPages()[g.errorCode]; as gp) {
-                  <table class="journal-table">
-                    <thead>
-                      <tr>
-                        <th style="width: 80px">Row</th>
-                        <th>Reason</th>
-                        <th>Payload</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (entry of gp.items; track entry.id) {
-                        <tr>
-                          <td class="row-num" [title]="entry.rowNumber ? 'Source file row ' + entry.rowNumber : 'Pre-framework row — source provenance: ' + entry.sourceKey">{{ rowDisplay(entry) }}</td>
-                          <td>
-                            @if (entry.errorMessage) {
-                              <div class="error-msg">{{ entry.errorMessage }}</div>
-                            }
-                          </td>
-                          <td>
-                            @if (entry.payload && journalShowPayload()) {
-                              <pre class="payload">{{ formatJson(entry.payload) }}</pre>
-                            }
-                          </td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                  <div class="journal-paging">
-                    <dx-button text="Prev" stylingMode="text" [disabled]="gp.page <= 1" (onClick)="groupPage(g.errorCode, -1)"></dx-button>
-                    <span>Page {{ gp.page }} of {{ maxPage(gp) }}</span>
-                    <dx-button text="Next" stylingMode="text" [disabled]="gp.page >= maxPage(gp)" (onClick)="groupPage(g.errorCode, 1)"></dx-button>
-                  </div>
-                } @else {
-                  <dx-load-indicator [visible]="true" hint="Loading rows&hellip;"></dx-load-indicator>
-                }
-              }
-            </div>
-          }
-
-          @if (s.totalRows === 0) {
-            <p class="placeholder">No journal rows for this batch.</p>
-          }
-        </div>
-        @if (s.totalRows > 0) {
-          <p class="total-count">
-            {{ s.importedRows | number }} imported &middot; {{ s.rejectedRows | number }} rejected &middot; {{ s.totalRows | number }} journal row(s) in total.
-          </p>
-        }
-      } @else {
-        <p class="placeholder">No journal rows for this batch.</p>
-      }
-    </section>
-  }
 
   <!-- Saved mappings (kept from the scaffold; dashboard's secondary section) -->
   <section class="panel">
