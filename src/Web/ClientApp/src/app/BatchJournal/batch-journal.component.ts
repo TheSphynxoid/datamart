@@ -1,7 +1,8 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, computed } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { DashboardClient, BatchDetailDto, ImportJournalSummaryDto, ImportJournalPage } from '../web-api-client';
 import { batchStatusBadge, journalRowDisplay, ImportRowStatusValues } from '../util/batch-view';
+import { MappingSnapshotView, parseMappingSnapshot, parseRulesSnapshot, RuleSnapshotView } from './snapshot-view';
 
 /// <summary>
 /// Per-batch journal page (tier-1 record + grouped tier-2 drill-down). Lives on
@@ -35,6 +36,15 @@ export class BatchJournalComponent implements OnInit {
   protected readonly journalShowPayload = signal(false);
   protected readonly showMappingSnapshot = signal(false);
   protected readonly showRulesSnapshot = signal(false);
+  // Structured views parse the snapshots into tables; "Raw" flips back to the
+  // byte-exact JSON (and is the fallback when a snapshot doesn't parse).
+  protected readonly showMappingRaw = signal(false);
+  protected readonly showRulesRaw = signal(false);
+
+  protected readonly mappingSnapshotView = computed(() =>
+    parseMappingSnapshot(this.batchDetail()?.mappingSnapshotJson));
+  protected readonly rulesSnapshotView = computed(() =>
+    parseRulesSnapshot(this.batchDetail()?.rulesSnapshotJson));
 
   // Page size for the rows shown inside an expanded journal box.
   private static readonly JournalBoxPageSize = 20;

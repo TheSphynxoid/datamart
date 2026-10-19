@@ -45,8 +45,10 @@
       <a routerLink="/" class="back-link">&larr; Dashboard</a>
     </header>
 
-    <!-- Config snapshots (tier-1 audit evidence): collapsed by default; download
-         gives the exact JSON for audit hand-off. -->
+    <!-- Config snapshots (tier-1 audit evidence): rendered as readable tables
+         parsed from the JSON; the raw, byte-exact JSON stays behind a "Raw"
+         toggle + download (the download is the audit hand-off, the view is the
+         projection). Unparseable snapshots fall back to the raw view. -->
     <section class="snapshots">
       <header class="snapshots-header">
         <h2>Config snapshots</h2>
@@ -74,11 +76,89 @@
           </div>
         }
       </header>
+
       @if (showMappingSnapshot() && batchDetail()?.mappingSnapshotJson; as mappingJson) {
-        <pre class="payload snapshot-block">{{ formatJson(mappingJson) }}</pre>
+        <div class="snapshot-card">
+          <div class="snapshot-card-header">
+            @if (mappingSnapshotView(); as mv) {
+              <span>
+                <strong>{{ mv.name }}</strong> &rarr; {{ mv.targetEntity }}
+                &middot; {{ mv.columns.length }} column(s)
+              </span>
+              <button class="payload-toggle" [class.active]="showMappingRaw()" (click)="showMappingRaw.set(!showMappingRaw())" type="button">
+                {{ showMappingRaw() ? 'Structured view' : 'Raw JSON' }}
+              </button>
+            }
+          </div>
+          @if (showMappingRaw() || !mappingSnapshotView()) {
+            <pre class="payload snapshot-block">{{ formatJson(mappingJson) }}</pre>
+          } @else if (mappingSnapshotView(); as mv) {
+            <table class="snapshot-table">
+              <thead>
+                <tr>
+                  <th>Excel column</th>
+                  <th>DB field</th>
+                  <th>Required</th>
+                  <th>Format options</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (c of mv.columns; track $index) {
+                  <tr>
+                    <td>{{ c.excelColumn }}</td>
+                    <td>
+                      @if (c.dbField; as field) { <span class="field-target">{{ field }}</span> }
+                      @else { <span class="page-empty">— unmapped</span> }
+                    </td>
+                    <td>@if (c.isRequired) { <span class="badge badge-req">required</span> }</td>
+                    <td>
+                      @for (f of c.formats; track f) { <span class="format-chip">{{ f }}</span> }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
       }
+
       @if (showRulesSnapshot() && batchDetail()?.rulesSnapshotJson; as rulesJson) {
-        <pre class="payload snapshot-block">{{ formatJson(rulesJson) }}</pre>
+        <div class="snapshot-card">
+          <div class="snapshot-card-header">
+            @if (rulesSnapshotView(); as rv) {
+              <span>{{ rv.length }} active rule(s) at import time</span>
+              <button class="payload-toggle" [class.active]="showRulesRaw()" (click)="showRulesRaw.set(!showRulesRaw())" type="button">
+                {{ showRulesRaw() ? 'Structured view' : 'Raw JSON' }}
+              </button>
+            }
+          </div>
+          @if (showRulesRaw() || !rulesSnapshotView()) {
+            <pre class="payload snapshot-block">{{ formatJson(rulesJson) }}</pre>
+          } @else if (rulesSnapshotView(); as rv) {
+            @if (rv.length === 0) {
+              <p class="page-empty">No rules were active for this entity at import time.</p>
+            } @else {
+              <table class="snapshot-table">
+                <thead>
+                  <tr>
+                    <th>Field</th>
+                    <th>Rule</th>
+                    <th>Message</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (r of rv; track $index) {
+                    <tr>
+                      <td>{{ r.field }}</td>
+                      <td><code class="rule-expression">{{ r.field }} {{ r.operator }} {{ r.valueDisplay }}</code></td>
+                      <td>{{ r.message ?? '—' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            }
+          }
+        </div>
       }
     </section>
 

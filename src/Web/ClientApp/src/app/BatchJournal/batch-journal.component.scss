@@ -137,6 +137,72 @@
   margin-top: 0.5rem;
 }
 
+// ── Snapshot structured views ────────────────────────────────────────────────
+.snapshot-card {
+  margin-top: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--dx-color-border);
+  border-radius: var(--dx-border-radius);
+  background: color-mix(in srgb, var(--dx-base-background-color, var(--dx-component-color-bg)) 70%, var(--dx-component-color-bg));
+  overflow-x: auto;
+}
+
+.snapshot-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.snapshot-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+
+  th, td {
+    border: 1px solid var(--dx-color-border, #e0e0e0);
+    padding: 0.35rem 0.5rem;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th {
+    background: var(--dx-component-color-bg, #f5f5f5);
+    font-weight: 600;
+  }
+}
+
+.field-target {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+}
+
+.format-chip {
+  display: inline-block;
+  padding: 0.05rem 0.4rem;
+  margin: 0.1rem 0.25rem 0.1rem 0;
+  border-radius: 0.3rem;
+  background: color-mix(in srgb, var(--dx-color-primary, #007bff) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--dx-color-primary, #007bff) 30%, transparent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.badge-req {
+  background: color-mix(in srgb, var(--dx-color-danger, #dc3545) 12%, transparent);
+  color: color-mix(in srgb, var(--dx-color-danger, #dc3545) 85%, var(--dx-color-text));
+  border-color: color-mix(in srgb, var(--dx-color-danger, #dc3545) 40%, transparent);
+}
+
+.rule-expression {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+}
+
 // ── Grouped journal ──────────────────────────────────────────────────────────
 .journal-section {
   padding: 0.75rem 1rem;
