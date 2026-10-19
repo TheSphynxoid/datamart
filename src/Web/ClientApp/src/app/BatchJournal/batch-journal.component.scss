@@ -203,6 +203,39 @@
   font-size: 0.8rem;
 }
 
+// Toggle buttons (snapshot show/hide, raw view, payload visibility) — same
+// visual language as the dashboard's toggles.
+.payload-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--dx-color-border);
+  border-radius: var(--dx-border-radius);
+  background: var(--dx-component-color-bg);
+  color: var(--dx-texteditor-color-label);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--dx-color-primary) 10%, transparent);
+    color: var(--dx-color-text);
+  }
+
+  &.active {
+    border-color: color-mix(in srgb, var(--dx-color-primary) 45%, transparent);
+    background: color-mix(in srgb, var(--dx-color-primary) 12%, transparent);
+    color: color-mix(in srgb, var(--dx-color-primary) 80%, var(--dx-color-text));
+  }
+}
+
+.id-range {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
 // ── Grouped journal ──────────────────────────────────────────────────────────
 .journal-section {
   padding: 0.75rem 1rem;
