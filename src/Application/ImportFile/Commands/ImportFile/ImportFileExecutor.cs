@@ -172,6 +172,14 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                     r.IsActive
                 }), JournalJsonOptions);
                 batch.MarkStarted(mappingSnapshotJson, rulesSnapshotJson);
+                batch.Phase = ImportPhase.Validating;
+
+                // Persist start + phase immediately (not piggybacked on the COPY's
+                // progress saves): the snapshots and StartedAt become durable before
+                // the long row pass, so a crash mid-materialization still leaves the
+                // auditable config it was running on, and the wizard's poll sees
+                // Phase=Validating right away.
+                await _context.SaveChangesAsync(cancellationToken);
 
                 var columns = new List<ImportColumn>();
                 var columnStats = new List<ColumnStats>();
@@ -332,7 +340,34 @@ namespace DataMart.Application.ImportFile.Commands.ImportFile;
                 // enumeration; the retry's re-enumeration only re-walks the materialised
                 // list for the COPY. (Memory: bounded by the 1,100,000-row cap added in
                 // the security/polish step.)
-                var rows = ReadRows().ToList();
+                //
+                // During this whole pass the wizard's poll used to sit at 0% (the COPY's
+                // progress callback is the only writer of ProcessedRows) and the batch
+                // looked stuck. Tick ProcessedRows per row read here, throttled to ~1%
+                // of TotalRows (min 1) so a 1.1M-row file does ~100 small saves instead
+                // of one per row. Same throttle shape as the async validator's
+                // IProgress callback. (The generator itself is a sync iterator, so the
+                // awaited saves live in this materialization loop, not in ReadRows.)
+                var rowPassThrottle = Math.Max(1, batch.TotalRows / 100);
+                var lastRowPassSave = 0;
+                var rows = new List<ImportRow>();
+                foreach (var row in ReadRows())
+                {
+                    rows.Add(row);
+                    if (rows.Count - lastRowPassSave >= rowPassThrottle)
+                    {
+                        lastRowPassSave = rows.Count;
+                        batch.ProcessedRows = rows.Count;
+                        await _context.SaveChangesAsync(cancellationToken);
+                    }
+                }
+
+                // Row pass finished, rows are in memory: the COPY restarts its own
+                // processed count (it reports rows actually copied, excluding
+                // skipped ones), so reset and re-label the phase.
+                batch.Phase = ImportPhase.Copying;
+                batch.ProcessedRows = 0;
+                await _context.SaveChangesAsync(cancellationToken);
 
                 var writeStats = await ImportWithRetryAsync(
                     mapping.TargetEntity,

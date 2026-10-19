@@ -329,6 +329,9 @@ namespace DataMart.Infrastructure.Migrations
                     b.Property<int?>("MinImpactedId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("Phase")
+                        .HasColumnType("integer");
+
                     b.Property<int>("ProcessedRows")
                         .HasColumnType("integer");
 

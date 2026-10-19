@@ -493,6 +493,18 @@ export class ExcelMapComponent implements OnInit, OnDestroy {
     return Math.round((batch.processedRows / batch.totalRows) * 100);
   }
 
+  // Server-reported import phase (ImportBatchDto.phase: 0 = Validating,
+  // 1 = Copying). The row pass (parse/transform/validate before any DB write)
+  // used to look like a hang; the label says what the server is doing, and
+  // ProcessedRows now ticks during the pass too.
+  protected phaseLabel(batch: ImportBatchDto): string {
+    switch (batch.phase) {
+      case 0: return 'Validating rows';
+      case 1: return 'Copying to database';
+      default: return 'Processing';
+    }
+  }
+
   private fetchImportReport(id: number): void {
     this.importClient.report(id).subscribe({
       next: report => this.importReport.set(report),

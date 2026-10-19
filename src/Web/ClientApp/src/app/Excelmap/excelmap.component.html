@@ -507,7 +507,7 @@
               [showStatus]="false"
               [width]="'100%'">
             </dx-progress-bar>
-            <p><small>{{ p.processedRows }} of {{ p.totalRows }} rows processed.</small></p>
+            <p><small>{{ phaseLabel(p) }} &mdash; {{ p.processedRows }} of {{ p.totalRows }} rows.</small></p>
           } @else {
             <dx-load-indicator [visible]="true" hint="Preparing import&hellip;"></dx-load-indicator>
           }

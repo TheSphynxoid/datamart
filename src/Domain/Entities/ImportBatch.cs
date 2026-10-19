@@ -72,6 +72,14 @@ public class ImportBatch : BaseAuditableEntity
     /// <see cref="TotalRows"/>.</summary>
     public bool JournalIncomplete { get; set; }
 
+    /// <summary>What the executor is currently doing with the batch while it is
+    /// Processing: <see cref="ImportPhase.Validating"/> = the full parse/transform/
+    /// validate row pass (no DB writes yet — the wizard's progress bar labels this
+    /// so it doesn't look stuck), <see cref="ImportPhase.Copying"/> = rows are being
+    /// COPY'd to the target table. Null on pre-framework batches and once the batch
+    /// is terminal (Complete/Fail clear it).</summary>
+    public ImportPhase? Phase { get; set; }
+
     /// <summary>Human-readable failure motif recorded when the batch lands in
     /// Failed (post-COPY failure, PLAYBACK abort or startup reconciliation).
     /// Null while Processing and on Success. Failed batches have no row journal
@@ -181,6 +189,7 @@ public class ImportBatch : BaseAuditableEntity
         EnsureProcessing(nameof(Complete));
         _status = ImportStatus.Success;
         CompletedAt = DateTimeOffset.UtcNow;
+        Phase = null;
     }
 
     /// <summary>Processing → Failed; stamps <see cref="CompletedAt"/> and the failure motif.</summary>
@@ -190,6 +199,7 @@ public class ImportBatch : BaseAuditableEntity
         _status = ImportStatus.Failed;
         FailedReason = reason;
         CompletedAt = DateTimeOffset.UtcNow;
+        Phase = null;
     }
 
     /// <summary>Records the range of target-table IDs created by the COPY step.

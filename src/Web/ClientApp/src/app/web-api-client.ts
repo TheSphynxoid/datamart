@@ -3409,6 +3409,7 @@ export class ImportBatchDto implements IImportBatchDto {
     fileName!: string;
     affectedTable!: string;
     status!: number;
+    phase!: number | undefined;
     totalRows!: number;
     processedRows!: number;
     skippedRows!: number;
@@ -3438,6 +3439,7 @@ export class ImportBatchDto implements IImportBatchDto {
             this.fileName = _data["fileName"];
             this.affectedTable = _data["affectedTable"];
             this.status = _data["status"];
+            this.phase = _data["phase"];
             this.totalRows = _data["totalRows"];
             this.processedRows = _data["processedRows"];
             this.skippedRows = _data["skippedRows"];
@@ -3465,6 +3467,7 @@ export class ImportBatchDto implements IImportBatchDto {
         data["fileName"] = this.fileName;
         data["affectedTable"] = this.affectedTable;
         data["status"] = this.status;
+        data["phase"] = this.phase;
         data["totalRows"] = this.totalRows;
         data["processedRows"] = this.processedRows;
         data["skippedRows"] = this.skippedRows;
@@ -3481,6 +3484,7 @@ export interface IImportBatchDto {
     fileName: string;
     affectedTable: string;
     status: number;
+    phase: number | undefined;
     totalRows: number;
     processedRows: number;
     skippedRows: number;
