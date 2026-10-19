@@ -14,6 +14,10 @@
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
     <PackageVersion Include="MediatR" Version="14.2.0" />
     <PackageVersion Include="MediatR.Contracts" Version="2.0.1" />
+    <!-- Transitive pin (AppHost): MessagePack 2.5.302 rides in via Aspire.Hosting.*
+         and trips NU1902 (GHSA-qhrr-8q5h-9q3h / CVE-2026-92707). Drop the pin once
+         Aspire.Hosting.AppHost ships a patched transitive. -->
+    <PackageVersion Include="MessagePack" Version="2.5.303" />
     <PackageVersion Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.10" />
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.10" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.10" />

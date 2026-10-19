@@ -9,6 +9,9 @@
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.AppHost" />
     <PackageReference Include="Aspire.Hosting.Azure.PostgreSQL" />
+    <!-- Hoists the transitive MessagePack above the vulnerable floor (NU1902 /
+         GHSA-qhrr-8q5h-9q3h); see Directory.Packages.props. -->
+    <PackageReference Include="MessagePack" />
   </ItemGroup>
 
   <ItemGroup>
