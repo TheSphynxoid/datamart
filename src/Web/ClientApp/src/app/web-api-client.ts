@@ -3670,7 +3670,7 @@ export interface IImportBatchPreviewDto {
 export class ImportJournalEntryDto implements IImportJournalEntryDto {
     id!: number;
     sourceKey!: string;
-    rowNumber!: number;
+    rowNumber!: number | undefined;
     status!: number;
     errorMessage!: string | undefined;
     payload!: string | undefined;
@@ -3730,7 +3730,7 @@ export class ImportJournalEntryDto implements IImportJournalEntryDto {
 export interface IImportJournalEntryDto {
     id: number;
     sourceKey: string;
-    rowNumber: number;
+    rowNumber: number | undefined;
     status: number;
     errorMessage: string | undefined;
     payload: string | undefined;
