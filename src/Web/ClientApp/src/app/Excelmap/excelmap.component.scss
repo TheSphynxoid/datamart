@@ -597,3 +597,25 @@
   gap: 0.5rem;
   margin-top: 0.25rem;
 }
+
+// -- Map step: make the two sides of the mapping explicit ---------------------
+// The left column is the uploaded file's columns; the right is the target
+// table selected in step 1. Both headers now carry that context because the
+// bare "Excel column / DB field" pair read as one entity's schema.
+.th-source,
+.th-target {
+  color: var(--dx-texteditor-color-label, #6c757d);
+  font-weight: 400;
+  font-size: 0.78rem;
+}
+
+.mapping-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+
+  strong {
+    color: var(--dx-color-text);
+    font-weight: 600;
+  }
+}

@@ -149,6 +149,10 @@
               <span class="step-stat-num">{{ m.filter(x => x.dbField !== null).length }}</span>
               of <span class="step-stat-num">{{ m.length }}</span> columns mapped
             </span>
+            <span class="step-stat-item mapping-target" title="The database table these fields are mapped into.">
+              <lucide-icon name="corner-down-right" [size]="14"></lucide-icon>
+              into <strong>{{ selectedEntity()?.name }}</strong>
+            </span>
             @if (m.filter(x => x.dbField !== null).length < m.length) {
               <span class="step-stat-hint">
                 <lucide-icon name="info" [size]="14"></lucide-icon>
@@ -173,10 +177,10 @@
           <table class="mapping-table">
             <thead>
               <tr>
-                <th>Excel column</th>
+                <th>Excel column <span class="th-source" title="Columns of the uploaded file — the source side of the mapping.">(source file)</span></th>
                 <th>Sample value</th>
                 <th aria-hidden="true"></th>
-                <th>DB field</th>
+                <th>DB field <span class="th-target" title="Fields of the target table selected in step 1.">({{ selectedEntity()?.name }})</span></th>
                 <th>Required</th>
               </tr>
             </thead>
