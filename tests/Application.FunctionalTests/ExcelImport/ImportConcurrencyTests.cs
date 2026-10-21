@@ -50,8 +50,8 @@ public class ImportConcurrencyTests : IAsyncLifetime
         var accountStart = await SendAccountImportAsync(_accountMappingId, ClientAccountFixtures.CreateXlsx(ClientAccountFixtures.Scenario.Ok), EmptyFieldMode.SkipRow);
         var transactionStart = await SendTransactionImportAsync(_transactionMappingId, CustomerTransactionFixtures.CreateXlsx(rowCount: 25));
 
-        await BatchTerminalWaiter.WaitForBatchTerminalAsync(accountStart.BatchId);
-        await BatchTerminalWaiter.WaitForBatchTerminalAsync(transactionStart.BatchId);
+        await BatchTerminalWaiter.WaitForJournalCompleteAsync(accountStart.BatchId);
+        await BatchTerminalWaiter.WaitForJournalCompleteAsync(transactionStart.BatchId);
 
         var accountBatch = await TestApp.FindAsync<ImportBatch>(accountStart.BatchId);
         var transactionBatch = await TestApp.FindAsync<ImportBatch>(transactionStart.BatchId);
@@ -92,8 +92,8 @@ public class ImportConcurrencyTests : IAsyncLifetime
         var largeStart = await SendAccountImportAsync(_accountMappingId, ClientAccountFixtures.CreateLargeXlsx(rowCount: 3000), EmptyFieldMode.SkipRow);
         var smallStart = await SendAccountImportAsync(_accountMappingId, ClientAccountFixtures.CreateXlsx(ClientAccountFixtures.Scenario.Ok), EmptyFieldMode.SkipRow);
 
-        await BatchTerminalWaiter.WaitForBatchTerminalAsync(largeStart.BatchId, timeoutSeconds: 120);
-        await BatchTerminalWaiter.WaitForBatchTerminalAsync(smallStart.BatchId, timeoutSeconds: 120);
+        await BatchTerminalWaiter.WaitForJournalCompleteAsync(largeStart.BatchId, timeoutSeconds: 120);
+        await BatchTerminalWaiter.WaitForJournalCompleteAsync(smallStart.BatchId, timeoutSeconds: 120);
 
         var largeBatch = await TestApp.FindAsync<ImportBatch>(largeStart.BatchId);
         var smallBatch = await TestApp.FindAsync<ImportBatch>(smallStart.BatchId);
