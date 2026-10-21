@@ -41,6 +41,34 @@ public static class ClientAccountFixtures
         return ms.ToArray();
     }
 
+    /// <summary>
+    /// Generates a programmatically large but fully-valid file (all rows importable).
+    /// Used where a test needs the import's row pass to take real time (e.g. proving
+    /// same-table FIFO ordering through StartedAt/CompletedAt, or catching the
+    /// Validating phase mid-flight).
+    /// </summary>
+    public static byte[] CreateLargeXlsx(int rowCount)
+    {
+        using var ms = new MemoryStream();
+        using var wb = new XLWorkbook();
+        var ws = wb.Worksheets.Add(SheetName);
+
+        for (int c = 0; c < Headers.Length; c++)
+            ws.Cell(1, c + 1).Value = Headers[c];
+
+        for (int r = 0; r < rowCount; r++)
+        {
+            var row = r + 2;
+            ws.Cell(row, 1).Value = $"A-{r:D6}";
+            ws.Cell(row, 2).Value = $"Client {r}";
+            ws.Cell(row, 3).Value = (1000 + r).ToString();
+            ws.Cell(row, 4).Value = $"2024-0{1 + (r % 9)}-1{r % 9}";
+        }
+
+        wb.SaveAs(ms);
+        return ms.ToArray();
+    }
+
     /// <summary>Writes the four scenario .xlsx files to the Fixtures folder if they are not already present.</summary>
     public static void EnsureOnDisk()
     {

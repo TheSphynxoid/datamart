@@ -57,6 +57,20 @@ public sealed class ImportProcessingService : BackgroundService
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
+        await ReconcileStaleBatchesAsync(cancellationToken);
+        await base.StartAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Startup reconciliation, exposed for tests (functional tests seed fake
+    /// crashed states and call this directly instead of starting the background
+    /// loop). Two sweeps:
+    ///   1. Batches left in Processing by a crashed run → Failed.
+    ///   2. Success batches whose journal upload was killed mid-flight
+    ///      (JournalRowsWritten &lt; TotalRows) → JournalIncomplete = true.
+    /// </summary>
+    internal async Task ReconcileStaleBatchesAsync(CancellationToken cancellationToken)
+    {
         try
         {
             using var scope = _scopeFactory.CreateScope();
@@ -97,8 +111,6 @@ public sealed class ImportProcessingService : BackgroundService
             // API from starting (e.g. DB briefly unavailable at boot).
             _logger.LogWarning(ex, "Could not reconcile stale import batches at startup.");
         }
-
-        await base.StartAsync(cancellationToken);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
